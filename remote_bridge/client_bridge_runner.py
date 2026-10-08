@@ -72,7 +72,12 @@ class ClientRemoteEngine:
                     return port
             except Exception:
                 pass
-        print(f"[*] Defaulting to emulator port: 127.0.0.1:{self.emulator_port}")
+        print("=" * 68)
+        print("[!] WARNING: No running Android emulator automatically detected!")
+        print("[*] Please ensure BlueStacks, LDPlayer, or MuMu is RUNNING with ADB enabled.")
+        print("[*] Common emulator ports checked: 5555, 5554, 16384 (MuMu 12), 7555, 21503.")
+        print(f"[*] Defaulting to target port: 127.0.0.1:{self.emulator_port}")
+        print("=" * 68)
         return self.emulator_port
 
     def get_ws_url(self) -> str:
@@ -99,11 +104,22 @@ class ClientRemoteEngine:
         print("[*] Initiating secure WebSocket bridge connection...")
 
         try:
+            connect_kwargs = {
+                "max_size": 32 * 1024 * 1024,
+                "ping_interval": 20,
+                "ping_timeout": 20,
+            }
+            import inspect
+            sig = inspect.signature(websockets.connect)
+            bypass_headers = {"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"}
+            if "additional_headers" in sig.parameters:
+                connect_kwargs["additional_headers"] = bypass_headers
+            elif "extra_headers" in sig.parameters:
+                connect_kwargs["extra_headers"] = bypass_headers
+
             async with websockets.connect(
                 ws_url,
-                max_size=32 * 1024 * 1024,
-                ping_interval=20,
-                ping_timeout=20,
+                **connect_kwargs,
             ) as ws:
                 self.ws = ws
                 print("[+] Tunnel connection opened. Authenticating...")

@@ -134,8 +134,55 @@ def _patch_mini_window_class(cls):
         cls.append_log = _patched_mini_append_log
 
 
+def _patch_emulator_lifecycle():
+    """Ensure bot engine never crashes with FileNotFoundError on systems without BlueStacks/executables."""
+    try:
+        import startup
+        def _safe_ensure(*args, **kwargs):
+            try:
+                if hasattr(startup, "_orig_ensure_emulator"):
+                    return startup._orig_ensure_emulator(*args, **kwargs)
+            except Exception as e:
+                print(f"[*] Notice: Emulator auto-launch bypassed ({e}). Connecting via ADB...")
+            return None
+
+        if not hasattr(startup, "_orig_ensure_emulator"):
+            startup._orig_ensure_emulator = startup.ensure_emulator_config_ready
+
+        startup.ensure_emulator_config_ready = _safe_ensure
+        startup.ensure_bluestacks_instance_running = lambda *args, **kwargs: True
+        startup.ensure_ldplayer_instance_running = lambda *args, **kwargs: True
+        startup.ensure_mumu_instance_running = lambda *args, **kwargs: True
+        startup.enforce_bluestacks_config = lambda *args, **kwargs: None
+        startup.enforce_emulator_config = lambda *args, **kwargs: None
+        startup.enforce_ldplayer_config = lambda *args, **kwargs: None
+        startup.enforce_mumu_config = lambda *args, **kwargs: None
+        startup.launch_emulator = lambda *args, **kwargs: True
+        startup.restart_emulator_instance = lambda *args, **kwargs: True
+        startup.stop_bluestacks_instance = lambda *args, **kwargs: True
+        startup.stop_emulator = lambda *args, **kwargs: True
+    except Exception:
+        pass
+
+    try:
+        import recovery
+        recovery.restart_emulator_instance = lambda *args, **kwargs: True
+        recovery.stop_emulator = lambda *args, **kwargs: True
+    except Exception:
+        pass
+
+    try:
+        for mod_name in ("main", "src.main"):
+            if mod_name in sys.modules:
+                m = sys.modules[mod_name]
+                if hasattr(m, "ensure_emulator_config_ready"):
+                    m.ensure_emulator_config_ready = lambda *args, **kwargs: None
+    except Exception:
+        pass
+
+
 def _patch_bot_worker(mod):
-    """Patch TeeStream in bot_worker to ensure session log file and streams use ClashBot AI."""
+    """Patch TeeStream and BotWorker to ensure crash-free execution."""
     if hasattr(mod, "TeeStream"):
         cls = mod.TeeStream
         if cls not in _PATCHED_CLASSES:
@@ -146,6 +193,16 @@ def _patch_bot_worker(mod):
                     data = clean_branding_text(data)
                 return _orig_write(self, data)
             cls.write = _patched_write
+
+    if hasattr(mod, "BotWorker"):
+        cls = mod.BotWorker
+        if cls not in _PATCHED_CLASSES:
+            _PATCHED_CLASSES.add(cls)
+            _orig_run = cls.run
+            def _patched_run(self, *args, **kwargs):
+                _patch_emulator_lifecycle()
+                return _orig_run(self, *args, **kwargs)
+            cls.run = _patched_run
 
 
 def _install_import_hook():
@@ -172,6 +229,10 @@ def _install_import_hook():
             for mod_name in ("ui.bot_worker", "bot_worker"):
                 if mod_name in sys.modules:
                     _patch_bot_worker(sys.modules[mod_name])
+            if "main" in sys.modules:
+                m = sys.modules["main"]
+                if hasattr(m, "ensure_emulator_config_ready"):
+                    m.ensure_emulator_config_ready = lambda *args, **kwargs: None
         except Exception:
             pass
         return mod
@@ -182,6 +243,7 @@ def apply_branding_patches():
     """Apply branding monkey-patches to Qt widgets and window classes."""
     global _BASE_PATCHED
     
+    _patch_emulator_lifecycle()
     _install_import_hook()
 
     if not _BASE_PATCHED:
@@ -287,19 +349,6 @@ def apply_branding_patches():
     except Exception:
         pass
 
-    # Patch startup emulator checks to prevent FileNotFoundError crashes
-    try:
-        import startup
-        _orig_ensure = startup.ensure_emulator_config_ready
-        def _safe_ensure(*args, **kwargs):
-            try:
-                return _orig_ensure(*args, **kwargs)
-            except Exception as e:
-                print(f"[*] Notice: Emulator auto-launch bypassed ({e}). Connecting via ADB...")
-                return None
-        startup.ensure_emulator_config_ready = _safe_ensure
-        startup.launch_emulator = lambda *args, **kwargs: True
-        startup.restart_emulator_instance = lambda *args, **kwargs: True
-    except Exception:
-        pass
+    _patch_emulator_lifecycle()
+
 

@@ -1,0 +1,11 @@
+[LOG]Session log started: \ClashBot-AI\logs\
+[*] Defaulting to emulator port: 127.0.0.1:5555
+====================================================================
+CLASHBOT AI - CONNECTING TO SECURE CLOUD ENGINE
+====================================================================
+[+] Cloud Server  : wss://coordinates-purpose-fast-lessons.trycloudflare.com/ws
+[+] Local Emulator: 127.0.0.1:5555
+[*] Initiating secure WebSocket bridge connection...
+[-] Connection to Cloud Server lost: server rejected WebSocket connection: HTTP 530
+[+] Session disconnected cleanly.
+[LOG] Session log ended
