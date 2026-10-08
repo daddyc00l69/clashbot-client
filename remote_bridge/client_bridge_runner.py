@@ -45,17 +45,39 @@ from remote_bridge.protocol import (
 
 
 class ClientRemoteEngine:
+    LATEST_PING_MS: int | None = None
+    ACTIVE_SERVER_HOST: str = "clashbot.devtushar.uk"
+
     def __init__(self, server_url: str, token: str, emulator_port: int = 5555, stats=None) -> None:
         self.server_url = server_url
         self.token = token
         self.emulator_port = emulator_port
         self.stats = stats
 
+        try:
+            import urllib.parse
+            p = urllib.parse.urlparse(server_url)
+            ClientRemoteEngine.ACTIVE_SERVER_HOST = p.netloc or "clashbot.devtushar.uk"
+        except Exception:
+            pass
+
         self.channels: dict[int, tuple[asyncio.StreamReader, asyncio.StreamWriter]] = {}
         self.pending_channel_data: dict[int, list[bytes]] = {}
         self.running = True
         self.ws = None
         self.loop = None
+
+        self.bot_speed = "balanced"
+        try:
+            cfg_file = Path(__file__).resolve().parent.parent / "client_config.json"
+            if cfg_file.exists():
+                with open(cfg_file, "r", encoding="utf-8") as f:
+                    cdata = json.load(f)
+                    self.bot_speed = cdata.get("bot_speed", "balanced")
+        except Exception:
+            pass
+        ClientRemoteEngine.BOT_SPEED = self.bot_speed
+
 
     def _find_emulator_executables(self) -> list[tuple[str, str]]:
         """Find installed emulator executables on Windows."""
@@ -302,12 +324,18 @@ class ClientRemoteEngine:
                 print("[OK] Authentication successful! Secure session established.")
                 # Prime local ADB server in background for instant low-latency capture
                 asyncio.create_task(asyncio.to_thread(self._ensure_local_adb_ready))
+                # Start live ping heartbeat loop
+                asyncio.create_task(self._ping_loop(ws))
                 print("[+] Synchronizing village profiles with server...")
 
                 # 2. Send Start Bot Control Command with config
+                merged_cfg = dict(config_dict or {})
+                if "bot_speed" not in merged_cfg:
+                    merged_cfg["bot_speed"] = self.bot_speed
+
                 start_payload = json.dumps({
                     "action": "start",
-                    "config": config_dict or {},
+                    "config": merged_cfg,
                 }).encode("utf-8")
                 await ws.send(pack_frame(MSG_BOT_CONTROL, start_payload))
 
@@ -328,7 +356,6 @@ class ClientRemoteEngine:
                         elif msg_type == MSG_OPEN_CHANNEL:
                             (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
                             asyncio.create_task(self._open_channel(ch_id))
-
 
                         elif msg_type == MSG_CHANNEL_DATA:
                             (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
@@ -364,8 +391,14 @@ class ClientRemoteEngine:
                         elif msg_type == MSG_BOT_TELEMETRY:
                             self._handle_telemetry(payload)
 
+                        elif msg_type == MSG_PONG:
+                            if len(payload) >= 8:
+                                (t0,) = struct.unpack("!d", payload[:8])
+                                ClientRemoteEngine.LATEST_PING_MS = max(1, int((time.time() - t0) * 1000))
+
                         elif msg_type == MSG_PING:
-                            await ws.send(pack_frame(MSG_PONG, b""))
+                            await ws.send(pack_frame(MSG_PONG, payload))
+
 
         except Exception as e:
             if self.running:
@@ -456,15 +489,33 @@ class ClientRemoteEngine:
             pass
 
     def _capture_local_jpeg(self) -> bytes | None:
-        """Capture screenshot locally on client emulator and compress to ~65KB JPEG for fast transfer."""
-        import subprocess
-        adb_bin = str(Path(__file__).resolve().parent.parent / "src" / "Tools" / "adb" / "adb.exe")
-        if not os.path.isfile(adb_bin):
-            import shutil
-            adb_bin = shutil.which("adb") or "adb"
-
+        """Capture screenshot locally on client emulator and compress to ~55KB JPEG for fast transfer."""
         target = f"127.0.0.1:{self.emulator_port}"
+        # 1. Direct in-memory TCP screencap via pure-python-adb (fastest: ~25ms, no process spawn)
         try:
+            import ppadb.client
+            client = ppadb.client.Client(host="127.0.0.1", port=5037)
+            dev = client.device(target)
+            if dev:
+                raw_png = dev.screencap()
+                if raw_png and len(raw_png) > 2000:
+                    import cv2
+                    import numpy as np
+                    img = cv2.imdecode(np.frombuffer(raw_png, np.uint8), cv2.IMREAD_COLOR)
+                    if img is not None:
+                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        return jpg_data.tobytes()
+        except Exception:
+            pass
+
+        # 2. Fallback to exec-out screencap via adb.exe subprocess
+        try:
+            import subprocess
+            adb_bin = str(Path(__file__).resolve().parent.parent / "src" / "Tools" / "adb" / "adb.exe")
+            if not os.path.isfile(adb_bin):
+                import shutil
+                adb_bin = shutil.which("adb") or "adb"
+
             res = subprocess.run(
                 [adb_bin, "-s", target, "exec-out", "screencap", "-p"],
                 capture_output=True,
@@ -475,7 +526,7 @@ class ClientRemoteEngine:
                 import numpy as np
                 img = cv2.imdecode(np.frombuffer(res.stdout, np.uint8), cv2.IMREAD_COLOR)
                 if img is not None:
-                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 80])
                     return jpg_data.tobytes()
         except Exception:
             pass
@@ -490,6 +541,16 @@ class ClientRemoteEngine:
         except Exception:
             pass
 
+    async def _ping_loop(self, ws) -> None:
+        """Continuously measure real-time round-trip latency to the server."""
+        while self.running:
+            try:
+                now_bytes = struct.pack("!d", time.time())
+                await ws.send(pack_frame(MSG_PING, now_bytes))
+            except Exception:
+                break
+            await asyncio.sleep(2.0)
+
     def stop(self) -> None:
         self.running = False
         if self.ws and self.loop:
@@ -501,4 +562,5 @@ class ClientRemoteEngine:
                 except Exception:
                     pass
             asyncio.run_coroutine_threadsafe(_send_stop(), self.loop)
+
 

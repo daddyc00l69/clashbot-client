@@ -1,5 +1,6 @@
 {
   "server_url": "https://clashbot.devtushar.uk",
   "token": "clashbot-secret-key-2026",
-  "emulator_port": 5555
+  "emulator_port": 5555,
+  "bot_speed": "balanced"
 }

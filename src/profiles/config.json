@@ -5,9 +5,9 @@
   "VILLAGE_COUNT": 10,
   "START_PROFILE": "",
   "EMULATOR_SELECTION": "mumu",
-  "EMULATOR_INSTANCE": "mumu:0",
+  "EMULATOR_INSTANCE": "mumu:1",
   "EMULATOR_IP": "127.0.0.1",
-  "EMULATOR_PORT": "16384",
+  "EMULATOR_PORT": "16416",
   "USE_ROOT_PROFILE_SWAP": false,
   "EMULATOR_INSTALL_PATHS": {
     "bluestacks": "",

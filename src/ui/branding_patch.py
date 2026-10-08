@@ -74,7 +74,50 @@ def _patch_main_window_class(cls):
                         lbl.setText(c)
         except Exception:
             pass
+
+        # Install live ping status bar indicator
+        try:
+            sb = self.statusBar()
+            if sb:
+                from PySide6.QtWidgets import QLabel
+                from PySide6.QtCore import QTimer
+
+                ping_lbl = QLabel("⚫ Connecting...")
+                ping_lbl.setObjectName("livePingStatusLabel")
+                ping_lbl.setStyleSheet("font-size: 11px; font-weight: 500; color: #888888; padding-right: 12px;")
+                sb.addPermanentWidget(ping_lbl)
+
+                def _update_ping_display():
+                    try:
+                        from remote_bridge.client_bridge_runner import ClientRemoteEngine
+                        ms = getattr(ClientRemoteEngine, "LATEST_PING_MS", None)
+                        server_host = getattr(ClientRemoteEngine, "ACTIVE_SERVER_HOST", "devtushar.uk")
+                        spd = getattr(ClientRemoteEngine, "BOT_SPEED", "balanced")
+                        spd_label = "Optimal" if spd.lower() == "balanced" else spd.capitalize()
+                        if ms is None or ms <= 0:
+                            ping_lbl.setText(f"⚫ Cloud: Connecting... | Speed: {spd_label}")
+                            ping_lbl.setStyleSheet("font-size: 11px; font-weight: 500; color: #888888; padding-right: 12px;")
+                        elif ms < 85:
+                            ping_lbl.setText(f"🟢 Ping: {ms}ms | Speed: {spd_label} | Cloud: {server_host}")
+                            ping_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #00e676; padding-right: 12px;")
+                        elif ms < 180:
+                            ping_lbl.setText(f"🟡 Ping: {ms}ms | Speed: {spd_label} | Cloud: {server_host}")
+                            ping_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #ffd600; padding-right: 12px;")
+                        else:
+                            ping_lbl.setText(f"🔴 Ping: {ms}ms (High Latency) | Speed: {spd_label} | Cloud: {server_host}")
+                            ping_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #ff5252; padding-right: 12px;")
+                    except Exception:
+                        pass
+
+                timer = QTimer(self)
+                timer.timeout.connect(_update_ping_display)
+                timer.start(1000)
+                self._ping_status_timer = timer
+                self._ping_status_label = ping_lbl
+        except Exception:
+            pass
     cls.__init__ = _patched_init
+
 
     if hasattr(cls, "append_log"):
         _orig_append_log = cls.append_log
