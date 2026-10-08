@@ -49,6 +49,7 @@ class ClientRemoteEngine:
         self.stats = stats
 
         self.channels: dict[int, tuple[asyncio.StreamReader, asyncio.StreamWriter]] = {}
+        self.pending_channel_data: dict[int, list[bytes]] = {}
         self.running = True
         self.ws = None
         self.loop = None
@@ -277,6 +278,15 @@ class ClientRemoteEngine:
                 **connect_kwargs,
             ) as ws:
                 self.ws = ws
+
+                # Optimize WebSocket transport for minimal packet latency
+                try:
+                    sock = ws.transport.get_extra_info("socket")
+                    if sock:
+                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                except Exception:
+                    pass
+
                 print("[+] Tunnel connection opened. Authenticating...")
 
                 # 1. Send auth frame
@@ -318,13 +328,25 @@ class ClientRemoteEngine:
                             if ch:
                                 _, ch_w = ch
                                 ch_w.write(data)
-                                await ch_w.drain()
+                                if ch_w.transport and ch_w.transport.get_write_buffer_size() > 512 * 1024:
+                                    await ch_w.drain()
+                            else:
+                                if ch_id not in self.pending_channel_data:
+                                    self.pending_channel_data[ch_id] = []
+                                self.pending_channel_data[ch_id].append(data)
 
                         elif msg_type == MSG_CLOSE_CHANNEL:
                             (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
+                            self.pending_channel_data.pop(ch_id, None)
                             ch = self.channels.pop(ch_id, None)
                             if ch:
                                 _, ch_w = ch
+                                try:
+                                    if ch_w.can_write_eof():
+                                        ch_w.write_eof()
+                                    await ch_w.drain()
+                                except Exception:
+                                    pass
                                 try:
                                     ch_w.close()
                                 except Exception:
@@ -345,18 +367,36 @@ class ClientRemoteEngine:
     async def _open_channel(self, ch_id: int) -> None:
         try:
             r, w = await asyncio.open_connection("127.0.0.1", self.emulator_port)
+            try:
+                sock = w.get_extra_info("socket")
+                if sock:
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            except Exception:
+                pass
+
             self.channels[ch_id] = (r, w)
+
+            # Flush any pending data received before local connection opened
+            pending = self.pending_channel_data.pop(ch_id, None)
+            if pending:
+                for chunk in pending:
+                    w.write(chunk)
+                await w.drain()
+
             if self.ws:
                 await self.ws.send(pack_channel_cmd(MSG_CHANNEL_OPENED, ch_id))
             asyncio.create_task(self._pump_channel_to_server(ch_id, r))
         except Exception as e:
+            self.pending_channel_data.pop(ch_id, None)
             if self.ws:
                 await self.ws.send(pack_channel_cmd(MSG_CLOSE_CHANNEL, ch_id))
 
     async def _pump_channel_to_server(self, ch_id: int, r: asyncio.StreamReader) -> None:
         try:
             while self.running and ch_id in self.channels:
-                data = await r.read(64 * 1024)
+                data = await r.read(256 * 1024)
                 if not data:
                     break
                 if self.ws:

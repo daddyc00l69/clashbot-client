@@ -119,6 +119,7 @@ class WebSocketClientWorker:
         self.token = token
         self.emulator_port = emulator_port
         self.channels: dict[int, tuple[asyncio.StreamReader, asyncio.StreamWriter]] = {}
+        self.pending_channel_data: dict[int, list[bytes]] = {}
 
     async def run(self) -> None:
         print("=" * 70)
@@ -132,6 +133,13 @@ class WebSocketClientWorker:
         while True:
             try:
                 async with websockets.connect(self.server_url, max_size=32 * 1024 * 1024, ping_interval=20, ping_timeout=20) as ws:
+                    try:
+                        sock = ws.transport.get_extra_info("socket")
+                        if sock:
+                            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    except Exception:
+                        pass
+
                     print(f"[OK] Connected to Server at {self.server_url}")
 
                     # Authenticate
@@ -175,13 +183,25 @@ class WebSocketClientWorker:
                     if ch:
                         _, emu_w = ch
                         emu_w.write(data)
-                        await emu_w.drain()
+                        if emu_w.transport and emu_w.transport.get_write_buffer_size() > 512 * 1024:
+                            await emu_w.drain()
+                    else:
+                        if ch_id not in self.pending_channel_data:
+                            self.pending_channel_data[ch_id] = []
+                        self.pending_channel_data[ch_id].append(data)
 
                 elif msg_type == MSG_CLOSE_CHANNEL:
                     (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
+                    self.pending_channel_data.pop(ch_id, None)
                     ch = self.channels.pop(ch_id, None)
                     if ch:
                         _, emu_w = ch
+                        try:
+                            if emu_w.can_write_eof():
+                                emu_w.write_eof()
+                            await emu_w.drain()
+                        except Exception:
+                            pass
                         try:
                             emu_w.close()
                         except Exception:
@@ -191,7 +211,23 @@ class WebSocketClientWorker:
         """Connect to local emulator (127.0.0.1:emulator_port) and pipe to WebSocket."""
         try:
             emu_r, emu_w = await asyncio.open_connection("127.0.0.1", self.emulator_port)
+            try:
+                sock = emu_w.get_extra_info("socket")
+                if sock:
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
+            except Exception:
+                pass
+
             self.channels[channel_id] = (emu_r, emu_w)
+
+            # Flush any pending data received before connection opened
+            pending = self.pending_channel_data.pop(channel_id, None)
+            if pending:
+                for chunk in pending:
+                    emu_w.write(chunk)
+                await emu_w.drain()
 
             # Inform server channel is open
             reply = struct.pack("!IB", 5, MSG_CHANNEL_OPENED) + CHANNEL_STRUCT.pack(channel_id)
@@ -199,7 +235,7 @@ class WebSocketClientWorker:
 
             # Pipe from emulator back to WebSocket
             while True:
-                data = await emu_r.read(65536)
+                data = await emu_r.read(256 * 1024)
                 if not data:
                     break
                 payload = CHANNEL_STRUCT.pack(channel_id) + data
