@@ -5,6 +5,11 @@ CLASHBOT AI - REMOTE CLIENT INSTRUCTIONS FOR YOUR FRIEND
 Welcome to ClashBot AI! You have the full authentic ClashBot AI Pro suite
 running directly on your laptop with live cloud attack intelligence.
 
+FIRST TIME SETUP:
+- Simply double-click `install.bat` (or `run_bot.bat`).
+- The automated installer will automatically configure Python and all required
+  packages on your PC without needing manual setup!
+
 HOW TO RUN:
 
 1. START YOUR ANDROID EMULATOR:
