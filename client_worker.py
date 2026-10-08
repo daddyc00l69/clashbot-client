@@ -39,7 +39,7 @@ COMMON_EMULATOR_PORTS = [
 
 
 def detect_local_emulator() -> int:
-    """Scan common ports to auto-detect a running emulator."""
+    """Scan common ports to auto-detect a running emulator, or auto-launch if closed."""
     print("[*] Scanning for active Android emulators on this computer...")
     for port, name in COMMON_EMULATOR_PORTS:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -50,6 +50,34 @@ def detect_local_emulator() -> int:
                     return port
             except Exception:
                 pass
+
+    # Try auto-launching installed emulator if closed
+    import os, subprocess
+    candidates = [
+        ("BlueStacks", [r"C:\Program Files\BlueStacks_nxt\HD-Player.exe", r"C:\Program Files (x86)\BlueStacks_nxt\HD-Player.exe"]),
+        ("LDPlayer", [r"C:\LDPlayer\LDPlayer9\dnplayer.exe", r"C:\LDPlayer\dnplayer.exe"]),
+        ("MuMu", [r"C:\Program Files\Netease\MuMuPlayer\nx_main\MuMuNxMain.exe", r"C:\Program Files\MuMuPlayer\nx_main\MuMuNxMain.exe"]),
+    ]
+    for emu_name, paths in candidates:
+        for p in paths:
+            if os.path.isfile(p):
+                print(f"[*] Emulator is closed. Automatically launching {emu_name} ({p})...")
+                try:
+                    subprocess.Popen([p], close_fds=True)
+                    print("[*] Waiting for emulator to boot and open ADB (up to 45s)...")
+                    start_t = time.time()
+                    while time.time() - start_t < 45:
+                        time.sleep(2)
+                        for port, name in COMMON_EMULATOR_PORTS:
+                            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                                s.settimeout(0.3)
+                                if s.connect_ex(("127.0.0.1", port)) == 0:
+                                    print(f"[OK] {emu_name} online on port {port}!")
+                                    return port
+                except Exception as e:
+                    print(f"[!] Auto-launch error: {e}")
+                break
+
     print("[!] No running emulator automatically detected on common ports.")
     print("[*] Defaulting to port 5555 (Standard ADB).")
     return 5555

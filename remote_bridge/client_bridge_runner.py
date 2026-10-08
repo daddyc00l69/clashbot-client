@@ -53,6 +53,107 @@ class ClientRemoteEngine:
         self.ws = None
         self.loop = None
 
+    def _find_emulator_executables(self) -> list[tuple[str, str]]:
+        """Find installed emulator executables on Windows."""
+        import os
+        results = []
+        cfg_paths = [
+            os.path.join(os.path.dirname(__file__), "..", "src", "profiles", "config.json"),
+            os.path.join(os.path.dirname(__file__), "..", "profiles", "config.json"),
+        ]
+        preferred = ""
+        custom_paths = {}
+        for p in cfg_paths:
+            if os.path.isfile(p):
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        cd = json.load(f)
+                        preferred = cd.get("EMULATOR_SELECTION", "").lower()
+                        custom_paths = cd.get("EMULATOR_INSTALL_PATHS", {})
+                    break
+                except Exception:
+                    pass
+
+        for emu_key, emu_path in custom_paths.items():
+            if emu_path and os.path.isfile(emu_path):
+                results.append((emu_key.capitalize(), emu_path))
+
+        standard_candidates = [
+            ("BlueStacks", [
+                r"C:\Program Files\BlueStacks_nxt\HD-Player.exe",
+                r"C:\Program Files (x86)\BlueStacks_nxt\HD-Player.exe",
+                r"C:\Program Files\BlueStacks\HD-Player.exe",
+            ]),
+            ("LDPlayer", [
+                r"C:\LDPlayer\LDPlayer9\dnplayer.exe",
+                r"C:\LDPlayer\LDPlayer14\dnplayer.exe",
+                r"C:\LDPlayer\dnplayer.exe",
+                r"D:\LDPlayer\LDPlayer9\dnplayer.exe",
+                r"D:\LDPlayer\LDPlayer14\dnplayer.exe",
+                r"D:\LDPlayer\dnplayer.exe",
+            ]),
+            ("MuMu", [
+                r"C:\Program Files\Netease\MuMuPlayer\nx_main\MuMuNxMain.exe",
+                r"C:\Program Files\Netease\MuMuPlayer\shell\MuMuPlayer.exe",
+                r"C:\Program Files\MuMuPlayer\nx_main\MuMuNxMain.exe",
+                r"C:\Program Files\MuMuPlayer\shell\MuMuPlayer.exe",
+                r"C:\Program Files\Netease\MuMuPlayerGlobal-12.0\shell\MuMuPlayer.exe",
+                r"C:\Program Files\Netease\MuMuPlayer-12.0\shell\MuMuPlayer.exe",
+            ]),
+            ("NoxPlayer", [
+                r"C:\Program Files\Nox\bin\Nox.exe",
+                r"C:\Program Files (x86)\Nox\bin\Nox.exe",
+            ]),
+        ]
+
+        for name, paths in standard_candidates:
+            if preferred and preferred in name.lower():
+                for p in paths:
+                    if os.path.isfile(p) and (name, p) not in results:
+                        results.insert(0, (name, p))
+            else:
+                for p in paths:
+                    if os.path.isfile(p) and (name, p) not in results:
+                        results.append((name, p))
+
+        return results
+
+    def try_auto_launch_emulator(self) -> int | None:
+        """Attempt to automatically locate and launch installed emulator if it is closed."""
+        candidates = self._find_emulator_executables()
+        if not candidates:
+            return None
+
+        name, exe_path = candidates[0]
+        print("=" * 68)
+        print(f"[*] Android emulator is closed. Automatically launching {name}...")
+        print(f"[*] Executable: {exe_path}")
+        print("=" * 68)
+        try:
+            import subprocess
+            subprocess.Popen([exe_path], close_fds=True)
+        except Exception as e:
+            print(f"[!] Could not launch emulator automatically: {e}")
+            return None
+
+        print("[*] Waiting for emulator to start and initialize ADB (up to 45s)...")
+        start_time = time.time()
+        common_ports = [self.emulator_port, 5555, 5554, 16384, 21503, 7555, 62001, 58526]
+        while time.time() - start_time < 45:
+            time.sleep(2)
+            for port in common_ports:
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.settimeout(0.3)
+                        if s.connect_ex(("127.0.0.1", port)) == 0:
+                            print(f"[+] {name} is ready! ADB active on 127.0.0.1:{port}")
+                            self.emulator_port = port
+                            return port
+                except Exception:
+                    pass
+        print("[!] Timed out waiting for emulator ADB. Please ensure ADB is enabled in emulator settings.")
+        return None
+
     def scan_emulator_port(self) -> int | None:
         """Scan common Android emulator ADB ports to auto-detect active emulator."""
         common_ports = [self.emulator_port, 5555, 5554, 16384, 21503, 7555, 62001, 58526]
@@ -72,6 +173,12 @@ class ClientRemoteEngine:
                     return port
             except Exception:
                 pass
+
+        # If not running, automatically launch installed emulator!
+        launched_port = self.try_auto_launch_emulator()
+        if launched_port is not None:
+            return launched_port
+
         print("=" * 68)
         print("[!] WARNING: No running Android emulator automatically detected!")
         print("[*] Please ensure BlueStacks, LDPlayer, or MuMu is RUNNING with ADB enabled.")
