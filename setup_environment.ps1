@@ -16,39 +16,46 @@ Write-Host ""
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
-function Test-Python310($exePath, $argsPrefix = "") {
+function Test-Python310($exePath) {
     if (-not $exePath) { return $false }
-    try {
-        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = $exePath
-        if ($argsPrefix) {
-            $pinfo.Arguments = "$argsPrefix -c `"import sys; sys.exit(42 if sys.version_info[:2] == (3, 10) else 1)`""
-        } else {
-            $pinfo.Arguments = '-c "import sys; sys.exit(42 if sys.version_info[:2] == (3, 10) else 1)"'
-        }
-        $pinfo.UseShellExecute = $false
-        $pinfo.CreateNoWindow = $true
-        $p = [System.Diagnostics.Process]::Start($pinfo)
-        $p.WaitForExit(5000)
-        return ($p.ExitCode -eq 42)
-    } catch {
-        return $false
+    if (-not (Test-Path $exePath)) {
+        # Check if it's a command in PATH
+        $cmd = Get-Command $exePath -ErrorAction SilentlyContinue
+        if (-not $cmd) { return $false }
+        $exePath = $cmd.Source
     }
+    try {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $exePath
+        $psi.Arguments = '-c "import sys; print(sys.version_info[0], sys.version_info[1])"'
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $p = [System.Diagnostics.Process]::Start($psi)
+        $output = $p.StandardOutput.ReadToEnd()
+        $p.WaitForExit(5000)
+        if ($output -and ($output.Trim() -eq "3 10")) {
+            return $true
+        }
+    } catch {}
+    return $false
 }
 
 function Find-Python310() {
-    # 1. Check LocalAppData Python 3.10
+    # 1. Check LocalAppData Python 3.10 explicitly
     $localPy310 = "$env:LocalAppData\Programs\Python\Python310\python.exe"
-    if ((Test-Path $localPy310) -and (Test-Python310 $localPy310)) {
+    if (Test-Python310 $localPy310) {
         return $localPy310
     }
 
-    # 2. Check 'py -3.10'
-    if (Test-Python310 "py" "-3.10") {
-        return "py -3.10"
+    # 2. Check Program Files Python 3.10 explicitly
+    $progPy310 = "C:\Program Files\Python310\python.exe"
+    if (Test-Python310 $progPy310) {
+        return $progPy310
     }
 
-    # 3. Check 'python' in PATH
+    # 3. Check 'python' in PATH if it is genuinely Python 3.10
     if (Test-Python310 "python") {
         try {
             $cmd = (Get-Command python -ErrorAction SilentlyContinue).Source
@@ -56,12 +63,6 @@ function Find-Python310() {
                 return $cmd
             }
         } catch {}
-    }
-
-    # 4. Check Program Files Python 3.10
-    $progPy310 = "C:\Program Files\Python310\python.exe"
-    if ((Test-Path $progPy310) -and (Test-Python310 $progPy310)) {
-        return $progPy310
     }
 
     return $null
@@ -157,20 +158,11 @@ Write-Host "[*] Installing required UI and networking components..." -Foreground
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 $reqFile = Join-Path $ScriptDir "requirements.txt"
-if ($pyBin -like "py *") {
-    & py -3.10 -m pip install --upgrade pip
-    if (Test-Path $reqFile) {
-        & py -3.10 -m pip install -r $reqFile
-    } else {
-        & py -3.10 -m pip install PySide6 websockets requests psutil cryptography
-    }
+& $pyBin -m pip install --upgrade pip
+if (Test-Path $reqFile) {
+    & $pyBin -m pip install -r $reqFile
 } else {
-    & $pyBin -m pip install --upgrade pip
-    if (Test-Path $reqFile) {
-        & $pyBin -m pip install -r $reqFile
-    } else {
-        & $pyBin -m pip install PySide6 websockets requests psutil cryptography
-    }
+    & $pyBin -m pip install PySide6 websockets requests psutil cryptography
 }
 
 if ($LASTEXITCODE -ne 0) {
@@ -182,11 +174,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "[*] Verifying PyArmor UI runtime compatibility..." -ForegroundColor Cyan
 $verifyCode = "import sys; sys.path.insert(0, 'src'); from pyarmor_runtime_015394 import __pyarmor__; print('[+] PyArmor runtime verified successfully!')"
-if ($pyBin -like "py *") {
-    & py -3.10 -c $verifyCode
-} else {
-    & $pyBin -c $verifyCode
-}
+& $pyBin -c $verifyCode
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
@@ -196,9 +184,5 @@ Write-Host ""
 
 if ($LaunchAfterInstall) {
     Write-Host "[*] Starting ClashBot AI..." -ForegroundColor Cyan
-    if ($pyBin -like "py *") {
-        & py -3.10 (Join-Path $ScriptDir "run.py")
-    } else {
-        & $pyBin (Join-Path $ScriptDir "run.py")
-    }
+    & $pyBin (Join-Path $ScriptDir "run.py")
 }
