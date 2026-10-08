@@ -505,18 +505,53 @@ class ClientRemoteEngine:
             pass
 
     def _capture_local_jpeg(self) -> bytes | None:
-        """Capture screenshot locally on client emulator and compress to ~55KB JPEG for fast transfer."""
+        """Capture screenshot locally on client emulator and compress to compact JPEG for ultra-fast transfer."""
         target = f"127.0.0.1:{self.emulator_port}"
-        # 1. Direct in-memory TCP screencap via pure-python-adb (fastest: ~25ms, no process spawn)
+
+        adb_bin = str(Path(__file__).resolve().parent.parent / "src" / "Tools" / "adb" / "adb.exe")
+        if not os.path.isfile(adb_bin):
+            import shutil
+            adb_bin = shutil.which("adb") or "adb"
+
+        # 1. Fastest: Raw framebuffer screencap via adb exec-out (bypasses Android CPU PNG compression: ~25ms)
+        try:
+            import struct
+            import subprocess
+            import cv2
+            import numpy as np
+
+            res = subprocess.run(
+                [adb_bin, "-s", target, "exec-out", "screencap"],
+                capture_output=True,
+                timeout=1.8,
+            )
+            raw_data = res.stdout
+            if res.returncode == 0 and len(raw_data) >= 16:
+                pw, ph, pfmt = struct.unpack("<III", raw_data[:12])
+                if 100 < pw < 4000 and 100 < ph < 4000:
+                    expected_12 = 12 + pw * ph * 4
+                    expected_16 = 16 + pw * ph * 4
+                    if len(raw_data) >= expected_12:
+                        offset = 12 if len(raw_data) == expected_12 or len(raw_data) < expected_16 else 16
+                        pixels = raw_data[offset : offset + pw * ph * 4]
+                        if len(pixels) == pw * ph * 4:
+                            rgba = np.frombuffer(pixels, dtype=np.uint8).reshape((ph, pw, 4))
+                            bgr = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)
+                            _, jpg_data = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 55])
+                            return jpg_data.tobytes()
+        except Exception:
+            pass
+
+        # 2. In-memory screencap via pure-python-adb
         try:
             import ppadb.client
+            import cv2
+            import numpy as np
             client = ppadb.client.Client(host="127.0.0.1", port=5037)
             dev = client.device(target)
             if dev:
                 raw_png = dev.screencap()
                 if raw_png and len(raw_png) > 2000:
-                    import cv2
-                    import numpy as np
                     img = cv2.imdecode(np.frombuffer(raw_png, np.uint8), cv2.IMREAD_COLOR)
                     if img is not None:
                         _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 55])
@@ -524,22 +559,17 @@ class ClientRemoteEngine:
         except Exception:
             pass
 
-        # 2. Fallback to exec-out screencap via adb.exe subprocess
+        # 3. Fallback to exec-out screencap -p
         try:
             import subprocess
-            adb_bin = str(Path(__file__).resolve().parent.parent / "src" / "Tools" / "adb" / "adb.exe")
-            if not os.path.isfile(adb_bin):
-                import shutil
-                adb_bin = shutil.which("adb") or "adb"
-
+            import cv2
+            import numpy as np
             res = subprocess.run(
                 [adb_bin, "-s", target, "exec-out", "screencap", "-p"],
                 capture_output=True,
-                timeout=1.8,
+                timeout=2.0,
             )
             if res.returncode == 0 and len(res.stdout) > 2000:
-                import cv2
-                import numpy as np
                 img = cv2.imdecode(np.frombuffer(res.stdout, np.uint8), cv2.IMREAD_COLOR)
                 if img is not None:
                     _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 55])
