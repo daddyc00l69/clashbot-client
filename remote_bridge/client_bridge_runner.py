@@ -519,7 +519,7 @@ class ClientRemoteEngine:
                     import numpy as np
                     img = cv2.imdecode(np.frombuffer(raw_png, np.uint8), cv2.IMREAD_COLOR)
                     if img is not None:
-                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 55, cv2.IMWRITE_JPEG_OPTIMIZE, 1])
+                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 55])
                         return jpg_data.tobytes()
         except Exception:
             pass
@@ -542,7 +542,7 @@ class ClientRemoteEngine:
                 import numpy as np
                 img = cv2.imdecode(np.frombuffer(res.stdout, np.uint8), cv2.IMREAD_COLOR)
                 if img is not None:
-                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 55, cv2.IMWRITE_JPEG_OPTIMIZE, 1])
+                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 55])
                     return jpg_data.tobytes()
         except Exception:
             pass
