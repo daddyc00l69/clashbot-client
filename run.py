@@ -63,6 +63,40 @@ def _ensure_python_310():
 
 _ensure_python_310()
 
+def _ensure_dependencies():
+    """Ensure all required Python packages (including OpenCV, PySide6, etc.) are installed."""
+    missing = []
+    checks = [
+        ("PySide6", "PySide6>=6.5.0"),
+        ("websockets", "websockets>=13.0"),
+        ("cv2", "opencv-python>=4.8.0"),
+        ("numpy", "numpy>=1.24.0"),
+        ("PIL", "pillow>=9.5.0"),
+        ("ppadb", "pure-python-adb>=0.3.0"),
+        ("requests", "requests>=2.31.0"),
+        ("psutil", "psutil>=5.9.0"),
+        ("cryptography", "cryptography>=41.0.0"),
+    ]
+    for mod_name, pkg_name in checks:
+        try:
+            __import__(mod_name)
+        except ImportError:
+            missing.append(pkg_name)
+
+    if missing:
+        print(f"[*] Missing required components: {', '.join(missing)}")
+        print("[*] Automatically installing missing components via pip...")
+        req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+        if os.path.isfile(req_file):
+            cmd = [sys.executable, "-m", "pip", "install", "-r", req_file]
+        else:
+            cmd = [sys.executable, "-m", "pip", "install"] + missing
+        res = subprocess.call(cmd)
+        if res != 0:
+            print("[-] Warning: Some components failed to install via pip.")
+
+_ensure_dependencies()
+
 project_root = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.join(project_root, "src")
 if src_dir not in sys.path:

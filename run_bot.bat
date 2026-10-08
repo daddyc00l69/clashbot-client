@@ -39,6 +39,12 @@ pause
 exit /b 1
 
 :RUN_BOT
+"%PY_CMD%" -c "import PySide6, websockets, cv2, numpy, PIL" >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo [*] Installing required components: PySide6, opencv-python, numpy, pillow...
+    "%PY_CMD%" -m pip install -r requirements.txt
+)
+
 "%PY_CMD%" run.py
 if %ERRORLEVEL% NEQ 0 (
     echo.
