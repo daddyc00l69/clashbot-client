@@ -1,31 +1,27 @@
-# ⚡ ClashBot AI - Client Worker
+# ClashBot AI Pro - Remote Client Suite
 
-The lightweight, zero-dependency client bridge for **ClashBot AI**. 
+Authentic PySide6 ClashBot AI interface for distributed gaming automation.
 
-This client worker securely bridges your local Android emulator (BlueStacks, LDPlayer, MuMu Player, MEmu) to a ClashBot AI Server over an authenticated, encrypted tunnel.
+## Quick Start
 
----
+1. Start your Android Emulator (**BlueStacks**, **LDPlayer**, or **MuMu Player**) and launch Clash of Clans.
+2. Enable Android Debug Bridge (**ADB**) in emulator settings.
+3. Double-click `run_bot.bat`.
+4. The full ClashBot AI Pro window opens on your screen. Configure your troops/profiles and click **Start Bot**.
 
-## 🚀 Quick Start
+## Server Connection Configuration
 
-### 1. Enable ADB in Your Emulator
-Make sure Android Debug Bridge (ADB) is enabled in your emulator settings:
-* **BlueStacks:** Settings ⚙️ ➔ Advanced ➔ Turn ON *Android Debug Bridge*.
-* **LDPlayer:** Settings ⚙️ ➔ Other Settings ➔ Set *ADB Debug* to *Open connection*.
-* **MuMu Player:** Settings ⚙️ ➔ Basic ➔ Turn ON *ADB*.
+Edit `client_config.json` if your server URL changes:
 
-### 2. Launch Clash of Clans
-Start your emulator and open **Clash of Clans**.
+```json
+{
+  "server_url": "https://holmes-recruiting-heat-bigger.trycloudflare.com",
+  "token": "clashbot-secret-key-2026",
+  "emulator_port": 5555
+}
+```
 
-### 3. Run the Client Worker
-* **Windows:** Simply double-click **`run_client.bat`**.
-* **Command Line:**
-  ```powershell
-  python client_worker.py --server <SERVER_IP> --port 9999 --token clashbot-secret-key-2026
-  ```
+## Security & Architecture
 
----
-
-## 🔒 Security & Privacy
-* **Zero Overhead:** Requires no external Python packages (uses only standard library).
-* **Safe & Isolated:** Only exposes local ADB input commands (`tap`, `screencap`) requested by the server.
+- **Zero Proprietary Leaks**: Tactical algorithms, farming FSMs, and OpenCV templates run on the private server.
+- **Full UI Authenticity**: 100% native PySide6 ClashBot AI Pro interface with live telemetry, loot cards, and profile switching.

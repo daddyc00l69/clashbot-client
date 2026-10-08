@@ -1,25 +1,32 @@
 ========================================================================
-CLASHBOT AI - CLIENT WORKER INSTRUCTIONS FOR YOUR FRIEND
+CLASHBOT AI - REMOTE CLIENT INSTRUCTIONS FOR YOUR FRIEND
 ========================================================================
 
-How to run on your laptop:
+Welcome to ClashBot AI! You have the full authentic ClashBot AI Pro suite
+running directly on your laptop with live cloud attack intelligence.
 
-1. START YOUR EMULATOR:
+HOW TO RUN:
+
+1. START YOUR ANDROID EMULATOR:
    - Open BlueStacks, LDPlayer, or MuMu Player.
    - Start Clash of Clans.
-   - Make sure ADB is enabled in Emulator settings:
-     * In BlueStacks: Settings -> Advanced -> Android Debug Bridge -> Turn ON.
-     * In LDPlayer: Settings -> Other Settings -> ADB Debug -> Open connection (or Remote connection).
-     * In MuMu: Settings -> Basic -> ADB -> Turn ON.
+   - Ensure Android Debug Bridge (ADB) is enabled in emulator settings:
+     * BlueStacks: Settings -> Advanced -> Android Debug Bridge -> ON
+     * LDPlayer  : Settings -> Other Settings -> ADB Debug -> Local / Remote
+     * MuMu      : Settings -> Basic -> ADB -> ON
 
-2. RUN THE WORKER:
-   - Double-click `run_client.bat`.
-   - If prompted for the Server IP:
-     * If you are on the same Wi-Fi as your friend, just press ENTER (uses 192.168.0.9).
-     * If you are over the internet, type the IP / domain given by your friend.
-   - The worker will auto-detect your emulator and connect!
+2. START THE CLASHBOT AI UI:
+   - Double-click `run_bot.bat`.
+   - The authentic ClashBot AI Pro window will open on your screen!
+   - (If needed, verify the server URL in `client_config.json`).
 
-3. SIT BACK:
-   - That's it! Your friend's server will now run the bot on your game.
-   - Keep the command prompt window open while the bot is playing.
+3. CHOOSE SETTINGS & START:
+   - In the ClashBot AI interface, configure your desired troops, farming
+     thresholds, and options across the tabs.
+   - Click "Start Bot"!
+   - The bot will automatically automate your emulator while displaying live
+     combat logs and loot stats directly in the application window.
+
+4. STOPPING THE BOT:
+   - Click "Stop Bot" in the interface anytime.
 ========================================================================
