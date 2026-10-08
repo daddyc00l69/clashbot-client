@@ -151,7 +151,7 @@ def _patch_main_window_class(cls):
                         top_call_str = f" | ⚡ #{total_calls}"
 
                     if ms is None or ms <= 0:
-                        b_text = f"⚫ Cloud: Connecting... | Host: {server_host}"
+                        b_text = f"⚫ Cloud: Connecting... | {server_host}"
                         t_text = "⚫ Connecting..."
                         style_b = (
                             "background: rgba(100, 116, 139, 0.15); "
@@ -176,8 +176,8 @@ def _patch_main_window_class(cls):
                             "margin-right: 10px;"
                         )
                     elif ms < 85:
-                        b_text = f"🟢 Ping: {ms}ms{call_str} | Cloud: {server_host}"
-                        t_text = f"🟢 {ms}ms{top_call_str}"
+                        b_text = f"🟢 Ping: {ms}ms | Cloud: {server_host}"
+                        t_text = f"🟢 {ms}ms"
                         style_b = (
                             "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(16, 185, 129, 0.18), stop:1 rgba(6, 182, 212, 0.18)); "
                             "border: 1px solid rgba(16, 185, 129, 0.5); "
@@ -201,8 +201,8 @@ def _patch_main_window_class(cls):
                             "margin-right: 10px;"
                         )
                     elif ms < 180:
-                        b_text = f"🟡 Ping: {ms}ms{call_str} | Cloud: {server_host}"
-                        t_text = f"🟡 {ms}ms{top_call_str}"
+                        b_text = f"🟡 Ping: {ms}ms | Cloud: {server_host}"
+                        t_text = f"🟡 {ms}ms"
                         style_b = (
                             "background: rgba(245, 158, 11, 0.18); "
                             "border: 1px solid rgba(245, 158, 11, 0.5); "
@@ -226,8 +226,8 @@ def _patch_main_window_class(cls):
                             "margin-right: 10px;"
                         )
                     else:
-                        b_text = f"🔴 Ping: {ms}ms (High Latency){call_str} | Cloud: {server_host}"
-                        t_text = f"🔴 {ms}ms{top_call_str}"
+                        b_text = f"🔴 Ping: {ms}ms (High Latency) | Cloud: {server_host}"
+                        t_text = f"🔴 {ms}ms"
                         style_b = (
                             "background: rgba(239, 68, 68, 0.18); "
                             "border: 1px solid rgba(239, 68, 68, 0.5); "
@@ -370,13 +370,13 @@ def _patch_mini_window_class(cls):
                             m_badge.setText("⚫ Offline")
                             m_badge.setStyleSheet("background: rgba(100, 116, 139, 0.15); border: 1px solid rgba(100, 116, 139, 0.35); border-radius: 4px; color: #94a3b8; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
                         elif ms < 85:
-                            m_badge.setText(f"🟢 {ms}ms{call_str}")
+                            m_badge.setText(f"🟢 {ms}ms")
                             m_badge.setStyleSheet("background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 4px; color: #10b981; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
                         elif ms < 180:
-                            m_badge.setText(f"🟡 {ms}ms{call_str}")
+                            m_badge.setText(f"🟡 {ms}ms")
                             m_badge.setStyleSheet("background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 4px; color: #f59e0b; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
                         else:
-                            m_badge.setText(f"🔴 {ms}ms{call_str}")
+                            m_badge.setText(f"🔴 {ms}ms")
                             m_badge.setStyleSheet("background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 4px; color: #ef4444; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
                         if m_badge.isHidden():
                             m_badge.show()
