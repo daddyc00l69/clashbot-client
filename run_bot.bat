@@ -1,5 +1,4 @@
 @echo off
-setlocal EnableDelayedExpansion
 title ClashBot AI - Autonomous Game Intelligence Suite
 echo ==========================================================
 echo   ClashBot AI - Autonomous Game Intelligence Suite
@@ -7,64 +6,73 @@ echo   Author: Aradhye Tushar (https://github.com/AradhyeTushar)
 echo ==========================================================
 cd /d "%~dp0"
 
-set "PY_BIN="
-
-:: 1. Check if python is working in PATH
-python -c "import sys" >nul 2>&1
-if !ERRORLEVEL! EQU 0 (
-    set "PY_BIN=python"
-    goto :RUN_APP
+:: 1. Verify working Python
+python -c "import sys; sys.exit(42)" >nul 2>&1
+if %ERRORLEVEL% EQU 42 (
+    set "PY_CMD=python"
+    goto :VERIFY_PACKAGES
 )
 
-:: 2. Check py launcher
-py -3 -c "import sys" >nul 2>&1
-if !ERRORLEVEL! EQU 0 (
-    set "PY_BIN=py -3"
-    goto :RUN_APP
+py -3 -c "import sys; sys.exit(42)" >nul 2>&1
+if %ERRORLEVEL% EQU 42 (
+    set "PY_CMD=py -3"
+    goto :VERIFY_PACKAGES
 )
 
-:: 3. Check LocalAppData Python installations
-for %%V in (Python313 Python312 Python311 Python310 Python39) do (
-    if exist "%LocalAppData%\Programs\Python\%%V\python.exe" (
-        "%LocalAppData%\Programs\Python\%%V\python.exe" -c "import sys" >nul 2>&1
-        if !ERRORLEVEL! EQU 0 (
-            set "PY_BIN=%LocalAppData%\Programs\Python\%%V\python.exe"
-            set "PATH=%LocalAppData%\Programs\Python\%%V;%LocalAppData%\Programs\Python\%%V\Scripts;!PATH!"
-            goto :RUN_APP
-        )
+if exist "%LocalAppData%\Programs\Python\Python311\python.exe" (
+    "%LocalAppData%\Programs\Python\Python311\python.exe" -c "import sys; sys.exit(42)" >nul 2>&1
+    if %ERRORLEVEL% EQU 42 (
+        set "PY_CMD=%LocalAppData%\Programs\Python\Python311\python.exe"
+        goto :VERIFY_PACKAGES
     )
 )
 
-:: 4. Check Program Files Python installations
-for %%V in (Python313 Python312 Python311 Python310 Python39) do (
-    if exist "C:\Program Files\Python%%V\python.exe" (
-        "C:\Program Files\Python%%V\python.exe" -c "import sys" >nul 2>&1
-        if !ERRORLEVEL! EQU 0 (
-            set "PY_BIN=C:\Program Files\Python%%V\python.exe"
-            set "PATH=C:\Program Files\Python%%V;C:\Program Files\Python%%V\Scripts;!PATH!"
-            goto :RUN_APP
-        )
+if exist "%LocalAppData%\Programs\Python\Python310\python.exe" (
+    "%LocalAppData%\Programs\Python\Python310\python.exe" -c "import sys; sys.exit(42)" >nul 2>&1
+    if %ERRORLEVEL% EQU 42 (
+        set "PY_CMD=%LocalAppData%\Programs\Python\Python310\python.exe"
+        goto :VERIFY_PACKAGES
     )
 )
 
-:: 5. If Python is not working, automatically launch the installer
+if exist "%LocalAppData%\Programs\Python\Python312\python.exe" (
+    "%LocalAppData%\Programs\Python\Python312\python.exe" -c "import sys; sys.exit(42)" >nul 2>&1
+    if %ERRORLEVEL% EQU 42 (
+        set "PY_CMD=%LocalAppData%\Programs\Python\Python312\python.exe"
+        goto :VERIFY_PACKAGES
+    )
+)
+
+:: Python not installed or Microsoft Store stub detected - Run automated installer
 echo [!] Python is not installed or configured on this computer.
 echo [*] Launching automated installer...
 echo.
-call install.bat
-exit /b %ERRORLEVEL%
-
-:RUN_APP
-:: Ensure required dependencies are present
-!PY_BIN! -c "import PySide6, websockets" >nul 2>&1
-if !ERRORLEVEL! NEQ 0 (
-    echo [*] Installing required UI and networking components: PySide6, websockets...
-    if exist requirements.txt (
-        !PY_BIN! -m pip install -r requirements.txt
-    ) else (
-        !PY_BIN! -m pip install PySide6 websockets requests psutil cryptography
-    )
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup_environment.ps1"
+if %ERRORLEVEL% NEQ 0 (
+    echo [-] Setup failed.
+    pause
+    exit /b 1
 )
 
-!PY_BIN! run.py
+:: Re-check after installation
+python -c "import sys; sys.exit(42)" >nul 2>&1
+if %ERRORLEVEL% EQU 42 (
+    set "PY_CMD=python"
+    goto :VERIFY_PACKAGES
+)
+if exist "%LocalAppData%\Programs\Python\Python311\python.exe" (
+    set "PY_CMD=%LocalAppData%\Programs\Python\Python311\python.exe"
+    goto :VERIFY_PACKAGES
+)
+set "PY_CMD=python"
+
+:VERIFY_PACKAGES
+%PY_CMD% -c "import PySide6, websockets" >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo [*] Installing required UI and networking components: PySide6, websockets...
+    %PY_CMD% -m pip install -r requirements.txt
+)
+
+echo [+] Starting ClashBot AI Engine...
+%PY_CMD% run.py
 pause
