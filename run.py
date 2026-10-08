@@ -162,6 +162,8 @@ def _ensure_dependencies():
 _ensure_dependencies()
 
 project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 src_dir = os.path.join(project_root, "src")
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)
@@ -169,6 +171,15 @@ if src_dir not in sys.path:
 os.chdir(src_dir)
 
 if __name__ == "__main__":
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication(sys.argv)
+
+    # 1. Launch Login & License Activation Dialog with HWID Verification
+    from remote_bridge.login_dialog import check_or_show_login_dialog
+    if not check_or_show_login_dialog():
+        print("[-] Login cancelled by user. Exiting.")
+        sys.exit(0)
+
     print(f"[+] Starting ClashBot AI Engine on Python {sys.version.split()[0]}...")
     try:
         from ui.branding_patch import apply_branding_patches

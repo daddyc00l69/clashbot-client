@@ -74,7 +74,6 @@ def _patch_main_window_class(cls):
                         lbl.setText(c)
         except Exception:
             pass
-
         # Install Live Ping & Server Call telemetry badges into visible UI bars
         try:
             from PySide6.QtWidgets import QLabel, QFrame
@@ -127,6 +126,8 @@ def _patch_main_window_class(cls):
             def _update_live_telemetry():
                 try:
                     from remote_bridge.client_bridge_runner import ClientRemoteEngine
+                    from remote_bridge.hwid import get_hwid
+                    hwid_code = get_hwid()
                     ms = getattr(ClientRemoteEngine, "LATEST_PING_MS", None)
                     server_host = getattr(ClientRemoteEngine, "ACTIVE_SERVER_HOST", "clashbot.devtushar.uk")
                     total_calls = getattr(ClientRemoteEngine, "TOTAL_SERVER_CALLS", 0)
@@ -151,8 +152,8 @@ def _patch_main_window_class(cls):
                         top_call_str = f" | ⚡ #{total_calls}"
 
                     if ms is None or ms <= 0:
-                        b_text = f"⚫ Cloud: Connecting... | {server_host}"
-                        t_text = "⚫ Connecting..."
+                        b_text = f"⚫ Cloud: Connecting... | HWID: {hwid_code} | Host: {server_host}"
+                        t_text = f"⚫ {hwid_code}"
                         style_b = (
                             "background: rgba(100, 116, 139, 0.15); "
                             "border: 1px solid rgba(100, 116, 139, 0.35); "
@@ -176,8 +177,8 @@ def _patch_main_window_class(cls):
                             "margin-right: 10px;"
                         )
                     elif ms < 85:
-                        b_text = f"🟢 Ping: {ms}ms | Cloud: {server_host}"
-                        t_text = f"🟢 {ms}ms"
+                        b_text = f"🟢 Ping: {ms}ms | HWID: {hwid_code} | Cloud: {server_host}"
+                        t_text = f"🟢 {ms}ms | {hwid_code}"
                         style_b = (
                             "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(16, 185, 129, 0.18), stop:1 rgba(6, 182, 212, 0.18)); "
                             "border: 1px solid rgba(16, 185, 129, 0.5); "
@@ -201,8 +202,8 @@ def _patch_main_window_class(cls):
                             "margin-right: 10px;"
                         )
                     elif ms < 180:
-                        b_text = f"🟡 Ping: {ms}ms | Cloud: {server_host}"
-                        t_text = f"🟡 {ms}ms"
+                        b_text = f"🟡 Ping: {ms}ms | HWID: {hwid_code} | Cloud: {server_host}"
+                        t_text = f"🟡 {ms}ms | {hwid_code}"
                         style_b = (
                             "background: rgba(245, 158, 11, 0.18); "
                             "border: 1px solid rgba(245, 158, 11, 0.5); "
@@ -226,8 +227,8 @@ def _patch_main_window_class(cls):
                             "margin-right: 10px;"
                         )
                     else:
-                        b_text = f"🔴 Ping: {ms}ms (High Latency) | Cloud: {server_host}"
-                        t_text = f"🔴 {ms}ms"
+                        b_text = f"🔴 Ping: {ms}ms | HWID: {hwid_code} | Cloud: {server_host}"
+                        t_text = f"🔴 {ms}ms | {hwid_code}"
                         style_b = (
                             "background: rgba(239, 68, 68, 0.18); "
                             "border: 1px solid rgba(239, 68, 68, 0.5); "
@@ -275,7 +276,6 @@ def _patch_main_window_class(cls):
         except Exception:
             pass
     cls.__init__ = _patched_init
-
 
     if hasattr(cls, "append_log"):
         _orig_append_log = cls.append_log

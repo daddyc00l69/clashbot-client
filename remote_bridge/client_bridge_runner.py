@@ -317,14 +317,36 @@ class ClientRemoteEngine:
 
                 print("[+] Tunnel connection opened. Authenticating...")
 
-                # 1. Send auth frame
-                await ws.send(pack_frame(MSG_AUTH, self.token.encode("utf-8")))
+                # 1. Send auth frame with HWID and License Key
+                from remote_bridge.hwid import get_hwid
+                client_hwid = get_hwid()
+                auth_dict = {
+                    "key": self.token,
+                    "token": self.token,
+                    "hwid": client_hwid,
+                    "version": "2.0.0",
+                }
+                await ws.send(pack_frame(MSG_AUTH, json.dumps(auth_dict).encode("utf-8")))
                 resp = await ws.recv()
                 if not isinstance(resp, bytes) or len(resp) < 5 or resp[4] != MSG_AUTH_OK:
-                    print("[-] Authentication rejected by server! Check token or server URL.")
+                    err_msg = "Authentication rejected by server."
+                    if isinstance(resp, bytes) and len(resp) >= 5:
+                        raw_payload = resp[5:].decode("utf-8", errors="ignore")
+                        try:
+                            err_data = json.loads(raw_payload)
+                            err_msg = err_data.get("error", raw_payload)
+                        except Exception:
+                            err_msg = raw_payload
+                    print(f"[-] Authentication rejected: {err_msg}")
                     return
 
-                print("[OK] Authentication successful! Secure session established.")
+                user_name = "User"
+                try:
+                    ok_data = json.loads(resp[5:].decode("utf-8", errors="ignore"))
+                    user_name = ok_data.get("user", "User")
+                except Exception:
+                    pass
+                print(f"[OK] Authentication successful! Licensed to: {user_name} | HWID: [{client_hwid}]")
                 # Prime local ADB server in background for instant low-latency capture
                 asyncio.create_task(asyncio.to_thread(self._ensure_local_adb_ready))
                 # Send immediate ping to populate latency badge in UI

@@ -68,8 +68,8 @@ def main(stats):
 
     # 1. Load client configuration
     config_path = _project_root / "client_config.json"
-    server_url = "https://holmes-recruiting-heat-bigger.trycloudflare.com"
-    token = "clashbot-secret-key-2026"
+    server_url = "ws://110.227.184.49:8765"
+    token = "CLASH-VIP-2026"
     emulator_port = 5555
 
     if config_path.exists():
@@ -77,7 +77,7 @@ def main(stats):
             with open(config_path, "r", encoding="utf-8") as f:
                 cfg_data = json.load(f)
                 server_url = cfg_data.get("server_url", server_url)
-                token = cfg_data.get("token", token)
+                token = cfg_data.get("license_key") or cfg_data.get("token", token)
                 emulator_port = int(cfg_data.get("emulator_port", emulator_port))
         except Exception as e:
             print(f"[!] Warning reading client_config.json: {e}")
