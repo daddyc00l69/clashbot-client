@@ -17,7 +17,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 python -c "import PySide6, websockets" >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo [*] Installing required UI and networking components (PySide6, websockets)...
+    echo [*] Installing required UI and networking components: PySide6, websockets...
     python -m pip install PySide6 websockets
 )
 
