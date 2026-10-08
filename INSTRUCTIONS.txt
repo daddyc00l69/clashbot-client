@@ -1,0 +1,25 @@
+========================================================================
+CLASHBOT AI - CLIENT WORKER INSTRUCTIONS FOR YOUR FRIEND
+========================================================================
+
+How to run on your laptop:
+
+1. START YOUR EMULATOR:
+   - Open BlueStacks, LDPlayer, or MuMu Player.
+   - Start Clash of Clans.
+   - Make sure ADB is enabled in Emulator settings:
+     * In BlueStacks: Settings -> Advanced -> Android Debug Bridge -> Turn ON.
+     * In LDPlayer: Settings -> Other Settings -> ADB Debug -> Open connection (or Remote connection).
+     * In MuMu: Settings -> Basic -> ADB -> Turn ON.
+
+2. RUN THE WORKER:
+   - Double-click `run_client.bat`.
+   - If prompted for the Server IP:
+     * If you are on the same Wi-Fi as your friend, just press ENTER (uses 192.168.0.9).
+     * If you are over the internet, type the IP / domain given by your friend.
+   - The worker will auto-detect your emulator and connect!
+
+3. SIT BACK:
+   - That's it! Your friend's server will now run the bot on your game.
+   - Keep the command prompt window open while the bot is playing.
+========================================================================
