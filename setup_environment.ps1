@@ -18,12 +18,7 @@ Set-Location $ScriptDir
 
 function Test-Python310($exePath) {
     if (-not $exePath) { return $false }
-    if (-not (Test-Path $exePath)) {
-        # Check if it's a command in PATH
-        $cmd = Get-Command $exePath -ErrorAction SilentlyContinue
-        if (-not $cmd) { return $false }
-        $exePath = $cmd.Source
-    }
+    if (-not (Test-Path $exePath)) { return $false }
     try {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $exePath
@@ -55,16 +50,7 @@ function Find-Python310() {
         return $progPy310
     }
 
-    # 3. Check 'python' in PATH if it is genuinely Python 3.10
-    if (Test-Python310 "python") {
-        try {
-            $cmd = (Get-Command python -ErrorAction SilentlyContinue).Source
-            if ($cmd -and ($cmd -notmatch "WindowsApps")) {
-                return $cmd
-            }
-        } catch {}
-    }
-
+    # (Note: We strictly do NOT check generic 'python' in PATH to avoid capturing Python 3.11/3.12)
     return $null
 }
 
@@ -102,18 +88,29 @@ if (-not $pyBin) {
     
     $installerPath = "$env:TEMP\python-3.10.11-amd64.exe"
     $downloadUrl = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe"
+    $downloaded = $false
 
     try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($downloadUrl, $installerPath)
-        Write-Host "[+] Download complete." -ForegroundColor Green
-    } catch {
-        Write-Host "[-] Download failed via WebClient, trying curl..." -ForegroundColor Yellow
         & curl.exe -sSL -o $installerPath $downloadUrl
+        if ((Test-Path $installerPath) -and ((Get-Item $installerPath).Length -gt 10000000)) {
+            $downloaded = $true
+            Write-Host "[+] Download complete via curl." -ForegroundColor Green
+        }
+    } catch {}
+
+    if (-not $downloaded) {
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($downloadUrl, $installerPath)
+            if ((Test-Path $installerPath) -and ((Get-Item $installerPath).Length -gt 10000000)) {
+                $downloaded = $true
+                Write-Host "[+] Download complete via WebClient." -ForegroundColor Green
+            }
+        } catch {}
     }
 
-    if (-not (Test-Path $installerPath)) {
+    if (-not $downloaded) {
         Write-Host "[-] ERROR: Failed to download Python 3.10 installer." -ForegroundColor Red
         Write-Host "[*] Please manually install Python 3.10 from https://www.python.org/downloads/release/python-31011/" -ForegroundColor Yellow
         Write-Host "[*] (Make sure to check 'Add Python to PATH' during installation!)" -ForegroundColor Yellow
@@ -175,6 +172,12 @@ Write-Host ""
 Write-Host "[*] Verifying PyArmor UI runtime compatibility..." -ForegroundColor Cyan
 $verifyCode = "import sys; sys.path.insert(0, 'src'); from pyarmor_runtime_015394 import __pyarmor__; print('[+] PyArmor runtime verified successfully!')"
 & $pyBin -c $verifyCode
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[-] ERROR: PyArmor runtime verification failed on $pyBin." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green

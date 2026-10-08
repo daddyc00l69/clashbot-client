@@ -18,7 +18,7 @@ if exist "C:\Program Files\Python310\python.exe" (
     goto :RUN_BOT
 )
 
-:: Python 3.10 is not yet installed
+:: Python 3.10 is not yet installed on this PC
 echo [!] ClashBot AI requires Python 3.10 (64-bit) for binary UI compatibility.
 echo [*] Launching automated installer to configure Python 3.10...
 echo.
@@ -34,12 +34,14 @@ if exist "C:\Program Files\Python310\python.exe" (
     goto :RUN_BOT
 )
 
-set "PY_CMD=python"
+echo [-] ERROR: Python 3.10 was not installed.
+pause
+exit /b 1
 
 :RUN_BOT
 "%PY_CMD%" run.py
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo [-] ClashBot AI exited with error code %ERRORLEVEL%.
+    echo [-] ClashBot AI exited with code %ERRORLEVEL%.
     pause
 )
