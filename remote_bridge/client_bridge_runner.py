@@ -118,6 +118,51 @@ class ClientRemoteEngine:
 
         return results
 
+    def _build_emulator_command(self, name: str, exe_path: str, instance_str: str = "") -> list[str]:
+        """Build exact command line to boot the Android device VM, avoiding bare launcher window."""
+        import os, re
+        cmd = [exe_path]
+        name_lower = name.lower()
+
+        inst_val = ""
+        if instance_str and ":" in instance_str:
+            inst_val = instance_str.split(":", 1)[1].strip()
+        elif instance_str:
+            inst_val = instance_str.strip()
+
+        if "mumu" in name_lower:
+            # MuMu 12 / 6: '-v <index>' boots the actual Android instance
+            idx = inst_val if inst_val.isdigit() else "0"
+            cmd.extend(["-v", idx])
+        elif "ldplayer" in name_lower:
+            # LDPlayer: 'index=<index>' boots the actual Android instance
+            idx = inst_val if inst_val.isdigit() else "0"
+            cmd.append(f"index={idx}")
+        elif "bluestacks" in name_lower:
+            # BlueStacks: '--instance <name>'
+            inst_name = inst_val if inst_val and inst_val != "default" else ""
+            if not inst_name:
+                for conf_p in [r"C:\ProgramData\BlueStacks_nxt\bluestacks.conf", r"C:\ProgramData\BlueStacks\bluestacks.conf"]:
+                    if os.path.isfile(conf_p):
+                        try:
+                            with open(conf_p, "r", encoding="utf-8", errors="ignore") as f:
+                                for line in f:
+                                    if "bst.installed_images" in line:
+                                        m = re.search(r'=\s*["\']?([^"\'\r\n]+)', line)
+                                        if m:
+                                            inst_name = m.group(1).split(",")[0].strip()
+                                            break
+                        except Exception:
+                            pass
+            if not inst_name:
+                inst_name = "Pie64"
+            cmd.extend(["--instance", inst_name])
+        elif "nox" in name_lower:
+            idx = inst_val if inst_val.isdigit() else "0"
+            cmd.append(f"-clone:Nox_{idx}")
+
+        return cmd
+
     def try_auto_launch_emulator(self) -> int | None:
         """Attempt to automatically locate and launch installed emulator if it is closed."""
         candidates = self._find_emulator_executables()
@@ -125,28 +170,32 @@ class ClientRemoteEngine:
             return None
 
         name, exe_path = candidates[0]
+        pref_inst = getattr(self, "preferred_instance", "")
+        launch_cmd = self._build_emulator_command(name, exe_path, pref_inst)
+
         print("=" * 68)
-        print(f"[*] Android emulator is closed. Automatically launching {name}...")
+        print(f"[*] Android emulator is closed. Launching Android device: {name}...")
         print(f"[*] Executable: {exe_path}")
+        print(f"[*] Command   : {' '.join(launch_cmd)}")
         print("=" * 68)
         try:
             import subprocess
-            subprocess.Popen([exe_path], close_fds=True)
+            subprocess.Popen(launch_cmd, close_fds=True)
         except Exception as e:
             print(f"[!] Could not launch emulator automatically: {e}")
             return None
 
-        print("[*] Waiting for emulator to start and initialize ADB (up to 45s)...")
+        print("[*] Waiting for Android device to boot and initialize ADB (up to 60s)...")
         start_time = time.time()
-        common_ports = [self.emulator_port, 5555, 5554, 16384, 21503, 7555, 62001, 58526]
-        while time.time() - start_time < 45:
+        common_ports = [self.emulator_port, 16384, 16416, 5555, 5554, 21503, 7555, 62001, 58526]
+        while time.time() - start_time < 60:
             time.sleep(2)
             for port in common_ports:
                 try:
                     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                         s.settimeout(0.3)
                         if s.connect_ex(("127.0.0.1", port)) == 0:
-                            print(f"[+] {name} is ready! ADB active on 127.0.0.1:{port}")
+                            print(f"[+] {name} Android device online! ADB active on 127.0.0.1:{port}")
                             self.emulator_port = port
                             return port
                 except Exception:

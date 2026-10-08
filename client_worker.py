@@ -61,12 +61,20 @@ def detect_local_emulator() -> int:
     for emu_name, paths in candidates:
         for p in paths:
             if os.path.isfile(p):
-                print(f"[*] Emulator is closed. Automatically launching {emu_name} ({p})...")
+                cmd = [p]
+                if emu_name == "MuMu":
+                    cmd.extend(["-v", "0"])
+                elif emu_name == "LDPlayer":
+                    cmd.append("index=0")
+                elif emu_name == "BlueStacks":
+                    cmd.extend(["--instance", "Pie64"])
+
+                print(f"[*] Emulator is closed. Launching Android device: {' '.join(cmd)}...")
                 try:
-                    subprocess.Popen([p], close_fds=True)
-                    print("[*] Waiting for emulator to boot and open ADB (up to 45s)...")
+                    subprocess.Popen(cmd, close_fds=True)
+                    print("[*] Waiting for Android device to boot and open ADB (up to 60s)...")
                     start_t = time.time()
-                    while time.time() - start_t < 45:
+                    while time.time() - start_t < 60:
                         time.sleep(2)
                         for port, name in COMMON_EMULATOR_PORTS:
                             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
