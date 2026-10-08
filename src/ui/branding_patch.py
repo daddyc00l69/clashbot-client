@@ -286,3 +286,20 @@ def apply_branding_patches():
         gui.set_windows_app_user_model_id = _patched_app_id
     except Exception:
         pass
+
+    # Patch startup emulator checks to prevent FileNotFoundError crashes
+    try:
+        import startup
+        _orig_ensure = startup.ensure_emulator_config_ready
+        def _safe_ensure(*args, **kwargs):
+            try:
+                return _orig_ensure(*args, **kwargs)
+            except Exception as e:
+                print(f"[*] Notice: Emulator auto-launch bypassed ({e}). Connecting via ADB...")
+                return None
+        startup.ensure_emulator_config_ready = _safe_ensure
+        startup.launch_emulator = lambda *args, **kwargs: True
+        startup.restart_emulator_instance = lambda *args, **kwargs: True
+    except Exception:
+        pass
+
