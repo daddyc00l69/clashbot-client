@@ -55,18 +55,26 @@ def detect_local_emulator() -> int:
     return 5555
 
 
+import re
+
+
 def normalize_ws_url(raw_url: str) -> str:
-    """Convert https://, http://, or bare IP/domain into valid ws:// or wss:// URL."""
-    url = raw_url.strip()
-    if url.startswith("https://"):
-        return "wss://" + url[8:]
-    if url.startswith("http://"):
-        return "ws://" + url[7:]
-    if url.startswith("wss://") or url.startswith("ws://"):
-        return url
-    if "trycloudflare.com" in url or not (":" in url and url.split(":")[-1].isdigit()):
-        return "wss://" + url
-    return "ws://" + url
+    """Robustly extract and normalize Cloudflare or local WebSocket URL."""
+    text = raw_url.strip().strip('"').strip("'")
+    # Extract URL if user accidentally pasted label or prefix like "Paste Server URL: https://..."
+    match = re.search(r"(https?://[^\s'\"]+|wss?://[^\s'\"]+|[a-zA-Z0-9\-]+\.trycloudflare\.com[^\s'\"]*)", text)
+    if match:
+        text = match.group(0)
+
+    if text.startswith("https://"):
+        return "wss://" + text[8:]
+    if text.startswith("http://"):
+        return "ws://" + text[7:]
+    if text.startswith("wss://") or text.startswith("ws://"):
+        return text
+    if "trycloudflare.com" in text or not (":" in text and text.split(":")[-1].isdigit()):
+        return "wss://" + text
+    return "ws://" + text
 
 
 class WebSocketClientWorker:

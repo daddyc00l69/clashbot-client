@@ -7,9 +7,9 @@ echo.
 echo Make sure your Android emulator (BlueStacks / LDPlayer / MuMu)
 echo is RUNNING and has Android Debug Bridge (ADB) enabled!
 echo.
-set /p SERVER_URL="Paste Server URL (e.g. https://xxxx.trycloudflare.com or IP): "
+set /p SERVER_URL="Enter Server Link: "
 if "%SERVER_URL%"=="" (
-    echo [!] Server URL cannot be empty!
+    echo [!] Link cannot be empty!
     pause
     exit /b
 )
