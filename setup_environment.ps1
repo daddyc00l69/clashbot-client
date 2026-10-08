@@ -16,12 +16,16 @@ Write-Host ""
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
-function Test-PythonExecutable($exePath) {
+function Test-Python310($exePath, $argsPrefix = "") {
     if (-not $exePath) { return $false }
     try {
         $pinfo = New-Object System.Diagnostics.ProcessStartInfo
         $pinfo.FileName = $exePath
-        $pinfo.Arguments = '-c "import sys; sys.exit(42)"'
+        if ($argsPrefix) {
+            $pinfo.Arguments = "$argsPrefix -c `"import sys; sys.exit(42 if sys.version_info[:2] == (3, 10) else 1)`""
+        } else {
+            $pinfo.Arguments = '-c "import sys; sys.exit(42 if sys.version_info[:2] == (3, 10) else 1)"'
+        }
         $pinfo.UseShellExecute = $false
         $pinfo.CreateNoWindow = $true
         $p = [System.Diagnostics.Process]::Start($pinfo)
@@ -32,9 +36,20 @@ function Test-PythonExecutable($exePath) {
     }
 }
 
-function Find-Python() {
-    # 1. Test 'python' in PATH
-    if (Test-PythonExecutable "python") {
+function Find-Python310() {
+    # 1. Check LocalAppData Python 3.10
+    $localPy310 = "$env:LocalAppData\Programs\Python\Python310\python.exe"
+    if ((Test-Path $localPy310) -and (Test-Python310 $localPy310)) {
+        return $localPy310
+    }
+
+    # 2. Check 'py -3.10'
+    if (Test-Python310 "py" "-3.10") {
+        return "py -3.10"
+    }
+
+    # 3. Check 'python' in PATH
+    if (Test-Python310 "python") {
         try {
             $cmd = (Get-Command python -ErrorAction SilentlyContinue).Source
             if ($cmd -and ($cmd -notmatch "WindowsApps")) {
@@ -43,42 +58,49 @@ function Find-Python() {
         } catch {}
     }
 
-    # 2. Test 'py' launcher
-    if (Test-PythonExecutable "py") {
-        return "py"
-    }
-
-    # 3. Check known directories
-    $commonPaths = @(
-        "$env:LocalAppData\Programs\Python\Python313\python.exe",
-        "$env:LocalAppData\Programs\Python\Python312\python.exe",
-        "$env:LocalAppData\Programs\Python\Python311\python.exe",
-        "$env:LocalAppData\Programs\Python\Python310\python.exe",
-        "$env:LocalAppData\Programs\Python\Python39\python.exe",
-        "C:\Program Files\Python313\python.exe",
-        "C:\Program Files\Python312\python.exe",
-        "C:\Program Files\Python311\python.exe",
-        "C:\Program Files\Python310\python.exe",
-        "C:\Program Files\Python39\python.exe"
-    )
-
-    foreach ($path in $commonPaths) {
-        if ((Test-Path $path) -and (Test-PythonExecutable $path)) {
-            return $path
-        }
+    # 4. Check Program Files Python 3.10
+    $progPy310 = "C:\Program Files\Python310\python.exe"
+    if ((Test-Path $progPy310) -and (Test-Python310 $progPy310)) {
+        return $progPy310
     }
 
     return $null
 }
 
-$pyBin = Find-Python
+function Ensure-VCRedist() {
+    $hasVC = $false
+    try {
+        $key = "HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X64"
+        if (Test-Path $key) {
+            $hasVC = $true
+        }
+    } catch {}
+
+    if (-not $hasVC) {
+        Write-Host "[*] Installing required Visual C++ 2015-2022 Runtime..." -ForegroundColor Cyan
+        $vcUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        $vcPath = "$env:TEMP\vc_redist.x64.exe"
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($vcUrl, $vcPath)
+            Start-Process -FilePath $vcPath -ArgumentList "/passive /norestart" -Wait
+            Remove-Item -Force $vcPath -ErrorAction SilentlyContinue
+            Write-Host "[+] Visual C++ Runtime installed." -ForegroundColor Green
+        } catch {
+            Write-Host "[-] Notice: Visual C++ download skipped ($($_.Exception.Message))" -ForegroundColor Yellow
+        }
+    }
+}
+
+$pyBin = Find-Python310
 
 if (-not $pyBin) {
-    Write-Host "[!] Working Python 3.10+ not detected on this system." -ForegroundColor Yellow
-    Write-Host "[*] Downloading official Python 3.11 (64-bit) from python.org..." -ForegroundColor Green
+    Write-Host "[!] ClashBot AI requires Python 3.10 (64-bit) for core PyArmor UI runtime compatibility." -ForegroundColor Yellow
+    Write-Host "[*] Downloading official Python 3.10.11 (64-bit) from python.org..." -ForegroundColor Green
     
-    $installerPath = "$env:TEMP\python-3.11.9-amd64.exe"
-    $downloadUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
+    $installerPath = "$env:TEMP\python-3.10.11-amd64.exe"
+    $downloadUrl = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-amd64.exe"
 
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -91,14 +113,14 @@ if (-not $pyBin) {
     }
 
     if (-not (Test-Path $installerPath)) {
-        Write-Host "[-] ERROR: Failed to download Python installer." -ForegroundColor Red
-        Write-Host "[*] Please manually install Python 3.11 from https://www.python.org/downloads/" -ForegroundColor Yellow
+        Write-Host "[-] ERROR: Failed to download Python 3.10 installer." -ForegroundColor Red
+        Write-Host "[*] Please manually install Python 3.10 from https://www.python.org/downloads/release/python-31011/" -ForegroundColor Yellow
         Write-Host "[*] (Make sure to check 'Add Python to PATH' during installation!)" -ForegroundColor Yellow
         Read-Host "Press Enter to exit"
         exit 1
     }
 
-    Write-Host "[*] Installing Python 3.11 (this takes ~30-60 seconds)..." -ForegroundColor Cyan
+    Write-Host "[*] Installing Python 3.10 (this takes ~30-60 seconds)..." -ForegroundColor Cyan
     $installProcess = Start-Process -FilePath $installerPath -ArgumentList "/passive InstallAllUsers=0 PrependPath=1 Include_pip=1 Include_test=0 SimpleInstall=1" -Wait -PassThru
     
     if (Test-Path $installerPath) {
@@ -110,9 +132,9 @@ if (-not $pyBin) {
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $env:Path = "$userPath;$machinePath"
 
-    $pyBin = Find-Python
+    $pyBin = Find-Python310
     if (-not $pyBin) {
-        $expected = "$env:LocalAppData\Programs\Python\Python311\python.exe"
+        $expected = "$env:LocalAppData\Programs\Python\Python310\python.exe"
         if (Test-Path $expected) {
             $pyBin = $expected
         }
@@ -120,29 +142,50 @@ if (-not $pyBin) {
 }
 
 if (-not $pyBin) {
-    Write-Host "[-] ERROR: Could not locate a working Python executable." -ForegroundColor Red
+    Write-Host "[-] ERROR: Could not locate Python 3.10 executable." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
 }
 
-Write-Host "[+] Using Python interpreter: $pyBin" -ForegroundColor Green
+# Ensure VC++ redistributable is present for PyArmor C-runtime
+Ensure-VCRedist
+
+Write-Host "[+] Using Python 3.10 interpreter: $pyBin" -ForegroundColor Green
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "[*] Installing required UI and networking components..." -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 $reqFile = Join-Path $ScriptDir "requirements.txt"
-if (Test-Path $reqFile) {
-    & $pyBin -m pip install --upgrade pip
-    & $pyBin -m pip install -r $reqFile
+if ($pyBin -like "py *") {
+    & py -3.10 -m pip install --upgrade pip
+    if (Test-Path $reqFile) {
+        & py -3.10 -m pip install -r $reqFile
+    } else {
+        & py -3.10 -m pip install PySide6 websockets requests psutil cryptography
+    }
 } else {
-    & $pyBin -m pip install PySide6 websockets requests psutil cryptography
+    & $pyBin -m pip install --upgrade pip
+    if (Test-Path $reqFile) {
+        & $pyBin -m pip install -r $reqFile
+    } else {
+        & $pyBin -m pip install PySide6 websockets requests psutil cryptography
+    }
 }
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[-] Warning: Failed to install one or more dependencies." -ForegroundColor Red
     Read-Host "Press Enter to exit"
     exit 1
+}
+
+Write-Host ""
+Write-Host "[*] Verifying PyArmor UI runtime compatibility..." -ForegroundColor Cyan
+$verifyCode = "import sys; sys.path.insert(0, 'src'); from pyarmor_runtime_015394 import __pyarmor__; print('[+] PyArmor runtime verified successfully!')"
+if ($pyBin -like "py *") {
+    & py -3.10 -c $verifyCode
+} else {
+    & $pyBin -c $verifyCode
 }
 
 Write-Host ""
@@ -153,5 +196,9 @@ Write-Host ""
 
 if ($LaunchAfterInstall) {
     Write-Host "[*] Starting ClashBot AI..." -ForegroundColor Cyan
-    & $pyBin (Join-Path $ScriptDir "run.py")
+    if ($pyBin -like "py *") {
+        & py -3.10 (Join-Path $ScriptDir "run.py")
+    } else {
+        & $pyBin (Join-Path $ScriptDir "run.py")
+    }
 }
