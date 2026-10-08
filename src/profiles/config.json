@@ -4,15 +4,16 @@
   "VILLAGE_SWITCH_CONDITION": "after_time",
   "VILLAGE_COUNT": 10,
   "START_PROFILE": "",
-  "EMULATOR_SELECTION": "bluestacks",
-  "EMULATOR_INSTANCE": "bluestacks:default",
+  "EMULATOR_SELECTION": "mumu",
+  "EMULATOR_INSTANCE": "mumu:0",
   "EMULATOR_IP": "127.0.0.1",
-  "EMULATOR_PORT": "5556",
+  "EMULATOR_PORT": "16384",
   "USE_ROOT_PROFILE_SWAP": false,
   "EMULATOR_INSTALL_PATHS": {
     "bluestacks": "",
     "ldplayer": "",
-    "other": ""
+    "other": "",
+    "mumu": ""
   },
   "UI_LANGUAGE": "en",
   "BOT_END_CONDITION_ENABLED": false,

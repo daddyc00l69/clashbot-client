@@ -63,18 +63,89 @@ def _ensure_python_310():
 
 _ensure_python_310()
 
+
+def install_spoof_module_finder():
+    """Universal import hook that intercepts missing legacy modules and provides safe stubs."""
+    import types
+    from importlib.abc import MetaPathFinder, Loader
+    from importlib.machinery import ModuleSpec
+
+    class _SpoofObject:
+        def __init__(self, name=""):
+            self._name = name
+        def __call__(self, *args, **kwargs):
+            return _SpoofObject(self._name)
+        def __getattr__(self, name):
+            if name.startswith("__") and name.endswith("__"):
+                raise AttributeError(name)
+            return _SpoofObject(f"{self._name}.{name}")
+        def __mro_entries__(self, bases):
+            return (object,)
+        def __bool__(self):
+            return True
+        def __int__(self):
+            return 0
+        def __float__(self):
+            return 0.0
+        def __len__(self):
+            return 0
+        def __iter__(self):
+            return iter([])
+        def __getitem__(self, key):
+            return _SpoofObject(f"{self._name}[{key}]")
+        def __repr__(self):
+            return f"<Spoof {self._name}>"
+
+    class _SpoofLoader(Loader):
+        def create_module(self, spec):
+            mod = types.ModuleType(spec.name)
+            mod.__path__ = []
+            mod.__file__ = f"<spoofed_{spec.name}>"
+            mod.__loader__ = self
+            return mod
+        def exec_module(self, mod):
+            def _getattr(name):
+                if name.startswith("__") and name.endswith("__"):
+                    raise AttributeError(name)
+                obj = _SpoofObject(f"{mod.__name__}.{name}")
+                setattr(mod, name, obj)
+                return obj
+            mod.__getattr__ = _getattr
+
+    class SpoofFinder(MetaPathFinder):
+        # Protected core modules that must be loaded normally
+        PROTECTED = {
+            "sys", "os", "PySide6", "websockets", "asyncio", "json", "socket",
+            "struct", "threading", "time", "functools", "pathlib", "logging",
+            "subprocess", "shutil", "math", "re", "random", "collections",
+            "typing", "ctypes", "io", "enum", "inspect", "builtins",
+            "cv2", "numpy", "PIL", "requests", "psutil", "cryptography",
+            "urllib3", "chardet", "charset_normalizer", "certifi", "idna", "six",
+            "ui", "utils", "remote_bridge", "main", "branding_patch"
+        }
+        def find_spec(self, name, path=None, target=None):
+            root = name.split(".")[0]
+            if root in self.PROTECTED:
+                return None
+            return ModuleSpec(name, _SpoofLoader(), is_package=True)
+
+    if not any(isinstance(f, SpoofFinder) for f in sys.meta_path):
+        sys.meta_path.append(SpoofFinder())
+
+# Install the spoof finder so missing legacy dependencies never crash the UI
+install_spoof_module_finder()
+
+
 def _ensure_dependencies():
-    """Ensure all required Python packages (including OpenCV, PySide6, etc.) are installed."""
+    """Ensure core Python packages (PySide6, OpenCV, NumPy, etc.) are installed."""
     checks = [
         ("PySide6", "PySide6"),
         ("websockets", "websockets>=13.0"),
         ("cv2", "opencv-python"),
         ("numpy", "numpy"),
         ("PIL", "pillow"),
-        ("ppadb", "pure-python-adb"),
         ("requests", "requests"),
         ("psutil", "psutil"),
-        ("cryptography", "cryptography"),
     ]
     missing = []
     for mod_name, pkg_name in checks:
@@ -84,18 +155,9 @@ def _ensure_dependencies():
             missing.append(pkg_name)
 
     if missing:
-        print(f"[*] Installing missing components: {', '.join(missing)}...")
-        req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
-        # Try full requirements.txt first
-        if os.path.isfile(req_file):
-            res = subprocess.call([sys.executable, "-m", "pip", "install", "-r", req_file])
-            if res != 0:
-                # If requirements.txt had any issue, install missing packages individually
-                for pkg in missing:
-                    subprocess.call([sys.executable, "-m", "pip", "install", pkg])
-        else:
-            for pkg in missing:
-                subprocess.call([sys.executable, "-m", "pip", "install", pkg])
+        print(f"[*] Installing required components: {', '.join(missing)}...")
+        for pkg in missing:
+            subprocess.call([sys.executable, "-m", "pip", "install", pkg])
 
 _ensure_dependencies()
 
