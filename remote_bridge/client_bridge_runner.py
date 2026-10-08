@@ -53,7 +53,7 @@ class ClientRemoteEngine:
         self.ws = None
         self.loop = None
 
-    def scan_emulator_port(self) -> int:
+    def scan_emulator_port(self) -> int | None:
         """Scan common Android emulator ADB ports to auto-detect active emulator."""
         common_ports = [self.emulator_port, 5555, 5554, 16384, 21503, 7555, 62001, 58526]
         seen = set()
@@ -76,9 +76,8 @@ class ClientRemoteEngine:
         print("[!] WARNING: No running Android emulator automatically detected!")
         print("[*] Please ensure BlueStacks, LDPlayer, or MuMu is RUNNING with ADB enabled.")
         print("[*] Common emulator ports checked: 5555, 5554, 16384 (MuMu 12), 7555, 21503.")
-        print(f"[*] Defaulting to target port: 127.0.0.1:{self.emulator_port}")
         print("=" * 68)
-        return self.emulator_port
+        return None
 
     def get_ws_url(self) -> str:
         url = self.server_url.strip()

@@ -104,7 +104,12 @@ def main(stats):
     _ACTIVE_ENGINE = engine
 
     # Auto-detect running emulator port
-    engine.scan_emulator_port()
+    active_port = engine.scan_emulator_port()
+    if active_port is None:
+        print("[!] ERROR: Cannot start bot - No active Android emulator detected!")
+        print("[*] Please launch BlueStacks, LDPlayer, or MuMu (with ADB enabled), then click Start.")
+        _ACTIVE_ENGINE = None
+        return
 
     # 4. Run async event loop
     loop = asyncio.new_event_loop()
