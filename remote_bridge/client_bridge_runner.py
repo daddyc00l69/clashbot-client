@@ -47,6 +47,9 @@ from remote_bridge.protocol import (
 class ClientRemoteEngine:
     LATEST_PING_MS: int | None = None
     ACTIVE_SERVER_HOST: str = "clashbot.devtushar.uk"
+    TOTAL_SERVER_CALLS: int = 0
+    LATEST_SERVER_CALL: dict | None = None
+    BOT_SPEED: str = "balanced"
 
     def __init__(self, server_url: str, token: str, emulator_port: int = 5555, stats=None) -> None:
         self.server_url = server_url
@@ -324,6 +327,11 @@ class ClientRemoteEngine:
                 print("[OK] Authentication successful! Secure session established.")
                 # Prime local ADB server in background for instant low-latency capture
                 asyncio.create_task(asyncio.to_thread(self._ensure_local_adb_ready))
+                # Send immediate ping to populate latency badge in UI
+                try:
+                    await ws.send(pack_frame(MSG_PING, struct.pack("!d", time.time())))
+                except Exception:
+                    pass
                 # Start live ping heartbeat loop
                 asyncio.create_task(self._ping_loop(ws))
                 print("[+] Synchronizing village profiles with server...")
@@ -404,6 +412,7 @@ class ClientRemoteEngine:
             if self.running:
                 print(f"[-] Connection to Cloud Server lost: {e}")
         finally:
+            ClientRemoteEngine.LATEST_PING_MS = None
             print("[+] Session disconnected cleanly.")
 
     async def _open_channel(self, ch_id: int) -> None:
@@ -456,6 +465,13 @@ class ClientRemoteEngine:
     def _handle_telemetry(self, payload: bytes) -> None:
         try:
             data = json.loads(payload.decode("utf-8"))
+            call_info = data.get("server_call")
+            if call_info and isinstance(call_info, dict):
+                cid = call_info.get("call_id")
+                if cid is not None:
+                    ClientRemoteEngine.TOTAL_SERVER_CALLS = cid
+                ClientRemoteEngine.LATEST_SERVER_CALL = call_info
+
             log_line = data.get("log")
             if log_line:
                 # Print directly to stdout so PySide6 MainWindow / TeeStream captures it
@@ -549,7 +565,7 @@ class ClientRemoteEngine:
                 await ws.send(pack_frame(MSG_PING, now_bytes))
             except Exception:
                 break
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(1.5)
 
     def stop(self) -> None:
         self.running = False

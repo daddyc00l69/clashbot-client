@@ -75,45 +75,203 @@ def _patch_main_window_class(cls):
         except Exception:
             pass
 
-        # Install live ping status bar indicator
+        # Install Live Ping & Server Call telemetry badges into visible UI bars
         try:
-            sb = self.statusBar()
-            if sb:
-                from PySide6.QtWidgets import QLabel
-                from PySide6.QtCore import QTimer
+            from PySide6.QtWidgets import QLabel, QFrame
+            from PySide6.QtCore import QTimer
 
-                ping_lbl = QLabel("⚫ Connecting...")
-                ping_lbl.setObjectName("livePingStatusLabel")
-                ping_lbl.setStyleSheet("font-size: 11px; font-weight: 500; color: #888888; padding-right: 12px;")
-                sb.addPermanentWidget(ping_lbl)
+            # 1. Primary Badge: BottomBar (Center-right, adjacent to Status label)
+            bottom_bar = getattr(self, "status", None).parent() if hasattr(self, "status") and self.status else None
+            ping_badge = None
+            if bottom_bar and bottom_bar.layout():
+                ping_badge = QLabel("⚫ Cloud: Connecting... | clashbot.devtushar.uk")
+                ping_badge.setObjectName("livePingBottomBadge")
+                ping_badge.setStyleSheet(
+                    "background: rgba(100, 116, 139, 0.15); "
+                    "border: 1px solid rgba(100, 116, 139, 0.35); "
+                    "border-radius: 6px; "
+                    "color: #94a3b8; "
+                    "font-family: 'Segoe UI', system-ui, sans-serif; "
+                    "font-size: 11px; "
+                    "font-weight: 600; "
+                    "padding: 4px 12px; "
+                    "margin-right: 8px;"
+                )
+                insert_idx = min(5, bottom_bar.layout().count() - 1)
+                bottom_bar.layout().insertWidget(insert_idx, ping_badge)
+                ping_badge.show()
+                self._live_bottom_badge = ping_badge
 
-                def _update_ping_display():
-                    try:
-                        from remote_bridge.client_bridge_runner import ClientRemoteEngine
-                        ms = getattr(ClientRemoteEngine, "LATEST_PING_MS", None)
-                        server_host = getattr(ClientRemoteEngine, "ACTIVE_SERVER_HOST", "devtushar.uk")
-                        spd = getattr(ClientRemoteEngine, "BOT_SPEED", "balanced")
-                        spd_label = "Optimal" if spd.lower() == "balanced" else spd.capitalize()
-                        if ms is None or ms <= 0:
-                            ping_lbl.setText(f"⚫ Cloud: Connecting... | Speed: {spd_label}")
-                            ping_lbl.setStyleSheet("font-size: 11px; font-weight: 500; color: #888888; padding-right: 12px;")
-                        elif ms < 85:
-                            ping_lbl.setText(f"🟢 Ping: {ms}ms | Speed: {spd_label} | Cloud: {server_host}")
-                            ping_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #00e676; padding-right: 12px;")
-                        elif ms < 180:
-                            ping_lbl.setText(f"🟡 Ping: {ms}ms | Speed: {spd_label} | Cloud: {server_host}")
-                            ping_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #ffd600; padding-right: 12px;")
+            # 2. Companion Badge: TitleBar (Top-right, preceding window control buttons)
+            title_bar = getattr(self, "title_bar", None)
+            top_badge = None
+            if title_bar and title_bar.layout():
+                top_badge = QLabel("⚫ Connecting...")
+                top_badge.setObjectName("livePingTopBadge")
+                top_badge.setStyleSheet(
+                    "background: rgba(100, 116, 139, 0.15); "
+                    "border: 1px solid rgba(100, 116, 139, 0.35); "
+                    "border-radius: 4px; "
+                    "color: #94a3b8; "
+                    "font-family: 'Segoe UI', system-ui, sans-serif; "
+                    "font-size: 11px; "
+                    "font-weight: 600; "
+                    "padding: 2px 8px; "
+                    "margin-right: 10px;"
+                )
+                insert_idx = min(2, title_bar.layout().count() - 1)
+                title_bar.layout().insertWidget(insert_idx, top_badge)
+                top_badge.show()
+                self._live_top_badge = top_badge
+
+            def _update_live_telemetry():
+                try:
+                    from remote_bridge.client_bridge_runner import ClientRemoteEngine
+                    ms = getattr(ClientRemoteEngine, "LATEST_PING_MS", None)
+                    server_host = getattr(ClientRemoteEngine, "ACTIVE_SERVER_HOST", "clashbot.devtushar.uk")
+                    total_calls = getattr(ClientRemoteEngine, "TOTAL_SERVER_CALLS", 0)
+                    latest_call = getattr(ClientRemoteEngine, "LATEST_SERVER_CALL", None)
+
+                    call_str = ""
+                    top_call_str = ""
+                    if latest_call and isinstance(latest_call, dict):
+                        cid = latest_call.get("call_id", total_calls)
+                        act = latest_call.get("action", "CALL")
+                        det = latest_call.get("details", "")
+                        dur = latest_call.get("duration_ms", 0)
+                        dur_text = f" [{dur}ms]" if dur > 0 else ""
+                        if det:
+                            det_short = det if len(det) <= 18 else det[:15] + "..."
+                            call_str = f" | ⚡ Call #{cid}: {act} {det_short}{dur_text}"
                         else:
-                            ping_lbl.setText(f"🔴 Ping: {ms}ms (High Latency) | Speed: {spd_label} | Cloud: {server_host}")
-                            ping_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #ff5252; padding-right: 12px;")
-                    except Exception:
-                        pass
+                            call_str = f" | ⚡ Call #{cid}: {act}{dur_text}"
+                        top_call_str = f" | ⚡ #{cid} {act}"
+                    elif total_calls > 0:
+                        call_str = f" | ⚡ {total_calls} Calls"
+                        top_call_str = f" | ⚡ #{total_calls}"
 
-                timer = QTimer(self)
-                timer.timeout.connect(_update_ping_display)
-                timer.start(1000)
-                self._ping_status_timer = timer
-                self._ping_status_label = ping_lbl
+                    if ms is None or ms <= 0:
+                        b_text = f"⚫ Cloud: Connecting... | Host: {server_host}"
+                        t_text = "⚫ Connecting..."
+                        style_b = (
+                            "background: rgba(100, 116, 139, 0.15); "
+                            "border: 1px solid rgba(100, 116, 139, 0.35); "
+                            "border-radius: 6px; "
+                            "color: #94a3b8; "
+                            "font-family: 'Segoe UI', system-ui, sans-serif; "
+                            "font-size: 11px; "
+                            "font-weight: 600; "
+                            "padding: 4px 12px; "
+                            "margin-right: 8px;"
+                        )
+                        style_t = (
+                            "background: rgba(100, 116, 139, 0.15); "
+                            "border: 1px solid rgba(100, 116, 139, 0.35); "
+                            "border-radius: 4px; "
+                            "color: #94a3b8; "
+                            "font-family: 'Segoe UI', system-ui, sans-serif; "
+                            "font-size: 11px; "
+                            "font-weight: 600; "
+                            "padding: 2px 8px; "
+                            "margin-right: 10px;"
+                        )
+                    elif ms < 85:
+                        b_text = f"🟢 Ping: {ms}ms{call_str} | Cloud: {server_host}"
+                        t_text = f"🟢 {ms}ms{top_call_str}"
+                        style_b = (
+                            "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(16, 185, 129, 0.18), stop:1 rgba(6, 182, 212, 0.18)); "
+                            "border: 1px solid rgba(16, 185, 129, 0.5); "
+                            "border-radius: 6px; "
+                            "color: #10b981; "
+                            "font-family: 'Segoe UI', system-ui, sans-serif; "
+                            "font-size: 11px; "
+                            "font-weight: 600; "
+                            "padding: 4px 12px; "
+                            "margin-right: 8px;"
+                        )
+                        style_t = (
+                            "background: rgba(16, 185, 129, 0.18); "
+                            "border: 1px solid rgba(16, 185, 129, 0.45); "
+                            "border-radius: 4px; "
+                            "color: #10b981; "
+                            "font-family: 'Segoe UI', system-ui, sans-serif; "
+                            "font-size: 11px; "
+                            "font-weight: 600; "
+                            "padding: 2px 8px; "
+                            "margin-right: 10px;"
+                        )
+                    elif ms < 180:
+                        b_text = f"🟡 Ping: {ms}ms{call_str} | Cloud: {server_host}"
+                        t_text = f"🟡 {ms}ms{top_call_str}"
+                        style_b = (
+                            "background: rgba(245, 158, 11, 0.18); "
+                            "border: 1px solid rgba(245, 158, 11, 0.5); "
+                            "border-radius: 6px; "
+                            "color: #f59e0b; "
+                            "font-family: 'Segoe UI', system-ui, sans-serif; "
+                            "font-size: 11px; "
+                            "font-weight: 600; "
+                            "padding: 4px 12px; "
+                            "margin-right: 8px;"
+                        )
+                        style_t = (
+                            "background: rgba(245, 158, 11, 0.18); "
+                            "border: 1px solid rgba(245, 158, 11, 0.45); "
+                            "border-radius: 4px; "
+                            "color: #f59e0b; "
+                            "font-family: 'Segoe UI', system-ui, sans-serif; "
+                            "font-size: 11px; "
+                            "font-weight: 600; "
+                            "padding: 2px 8px; "
+                            "margin-right: 10px;"
+                        )
+                    else:
+                        b_text = f"🔴 Ping: {ms}ms (High Latency){call_str} | Cloud: {server_host}"
+                        t_text = f"🔴 {ms}ms{top_call_str}"
+                        style_b = (
+                            "background: rgba(239, 68, 68, 0.18); "
+                            "border: 1px solid rgba(239, 68, 68, 0.5); "
+                            "border-radius: 6px; "
+                            "color: #ef4444; "
+                            "font-family: 'Segoe UI', system-ui, sans-serif; "
+                            "font-size: 11px; "
+                            "font-weight: 600; "
+                            "padding: 4px 12px; "
+                            "margin-right: 8px;"
+                        )
+                        style_t = (
+                            "background: rgba(239, 68, 68, 0.18); "
+                            "border: 1px solid rgba(239, 68, 68, 0.45); "
+                            "border-radius: 4px; "
+                            "color: #ef4444; "
+                            "font-family: 'Segoe UI', system-ui, sans-serif; "
+                            "font-size: 11px; "
+                            "font-weight: 600; "
+                            "padding: 2px 8px; "
+                            "margin-right: 10px;"
+                        )
+
+                    if ping_badge:
+                        if ping_badge.text() != b_text:
+                            ping_badge.setText(b_text)
+                            ping_badge.setStyleSheet(style_b)
+                        if ping_badge.isHidden():
+                            ping_badge.show()
+
+                    if top_badge:
+                        if top_badge.text() != t_text:
+                            top_badge.setText(t_text)
+                            top_badge.setStyleSheet(style_t)
+                        if top_badge.isHidden():
+                            top_badge.show()
+                except Exception:
+                    pass
+
+            timer = QTimer(self)
+            timer.timeout.connect(_update_live_telemetry)
+            timer.start(500)
+            self._live_telemetry_timer = timer
+            _update_live_telemetry()
         except Exception:
             pass
     cls.__init__ = _patched_init
@@ -164,6 +322,72 @@ def _patch_mini_window_class(cls):
                     c = clean_branding_text(t)
                     if c != t:
                         lbl.setText(c)
+        except Exception:
+            pass
+
+        # Install Live Ping & Server Call telemetry badge into MiniWindow
+        try:
+            from PySide6.QtWidgets import QLabel, QFrame
+            from PySide6.QtCore import QTimer
+
+            shell = self.findChild(QFrame, "MiniShell")
+            mini_tb = shell.findChild(QFrame, "TitleBar") if shell else None
+            if mini_tb and mini_tb.layout():
+                m_badge = QLabel("⚫ Connecting...")
+                m_badge.setObjectName("miniLivePingBadge")
+                m_badge.setStyleSheet(
+                    "background: rgba(100, 116, 139, 0.15); "
+                    "border: 1px solid rgba(100, 116, 139, 0.35); "
+                    "border-radius: 4px; "
+                    "color: #94a3b8; "
+                    "font-family: 'Segoe UI', system-ui, sans-serif; "
+                    "font-size: 10px; "
+                    "font-weight: 600; "
+                    "padding: 2px 6px; "
+                    "margin-right: 6px;"
+                )
+                insert_idx = max(0, mini_tb.layout().count() - 2)
+                mini_tb.layout().insertWidget(insert_idx, m_badge)
+                m_badge.show()
+                self._mini_live_badge = m_badge
+
+                def _update_mini_telemetry():
+                    try:
+                        from remote_bridge.client_bridge_runner import ClientRemoteEngine
+                        ms = getattr(ClientRemoteEngine, "LATEST_PING_MS", None)
+                        total_calls = getattr(ClientRemoteEngine, "TOTAL_SERVER_CALLS", 0)
+                        latest_call = getattr(ClientRemoteEngine, "LATEST_SERVER_CALL", None)
+
+                        call_str = ""
+                        if latest_call and isinstance(latest_call, dict):
+                            cid = latest_call.get("call_id", total_calls)
+                            act = latest_call.get("action", "CALL")
+                            call_str = f" | ⚡ #{cid}"
+                        elif total_calls > 0:
+                            call_str = f" | ⚡ #{total_calls}"
+
+                        if ms is None or ms <= 0:
+                            m_badge.setText("⚫ Offline")
+                            m_badge.setStyleSheet("background: rgba(100, 116, 139, 0.15); border: 1px solid rgba(100, 116, 139, 0.35); border-radius: 4px; color: #94a3b8; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
+                        elif ms < 85:
+                            m_badge.setText(f"🟢 {ms}ms{call_str}")
+                            m_badge.setStyleSheet("background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 4px; color: #10b981; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
+                        elif ms < 180:
+                            m_badge.setText(f"🟡 {ms}ms{call_str}")
+                            m_badge.setStyleSheet("background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 4px; color: #f59e0b; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
+                        else:
+                            m_badge.setText(f"🔴 {ms}ms{call_str}")
+                            m_badge.setStyleSheet("background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 4px; color: #ef4444; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
+                        if m_badge.isHidden():
+                            m_badge.show()
+                    except Exception:
+                        pass
+
+                m_timer = QTimer(self)
+                m_timer.timeout.connect(_update_mini_telemetry)
+                m_timer.start(500)
+                self._mini_telemetry_timer = m_timer
+                _update_mini_telemetry()
         except Exception:
             pass
     cls.__init__ = _patched_init
