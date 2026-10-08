@@ -17,6 +17,9 @@ MSG_PONG = 0x21
 MSG_BOT_CONTROL = 0x30
 MSG_BOT_CONFIG = 0x31
 MSG_BOT_TELEMETRY = 0x32
+MSG_FAST_SCREENSHOT_REQ = 0x40
+MSG_FAST_SCREENSHOT_RESP = 0x41
+
 
 HEADER_STRUCT = struct.Struct("!IB")  # 4 bytes payload length, 1 byte type
 CHANNEL_STRUCT = struct.Struct("!I")  # 4 bytes channel_id

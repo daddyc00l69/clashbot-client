@@ -32,6 +32,8 @@ from remote_bridge.protocol import (
     MSG_CHANNEL_DATA,
     MSG_CHANNEL_OPENED,
     MSG_CLOSE_CHANNEL,
+    MSG_FAST_SCREENSHOT_REQ,
+    MSG_FAST_SCREENSHOT_RESP,
     MSG_OPEN_CHANNEL,
     MSG_PING,
     MSG_PONG,
@@ -39,6 +41,7 @@ from remote_bridge.protocol import (
     pack_data,
     pack_frame,
 )
+
 
 
 class ClientRemoteEngine:
@@ -297,6 +300,8 @@ class ClientRemoteEngine:
                     return
 
                 print("[OK] Authentication successful! Secure session established.")
+                # Prime local ADB server in background for instant low-latency capture
+                asyncio.create_task(asyncio.to_thread(self._ensure_local_adb_ready))
                 print("[+] Synchronizing village profiles with server...")
 
                 # 2. Send Start Bot Control Command with config
@@ -317,9 +322,13 @@ class ClientRemoteEngine:
                         msg_type = raw[4]
                         payload = raw[5:]
 
-                        if msg_type == MSG_OPEN_CHANNEL:
+                        if msg_type == MSG_FAST_SCREENSHOT_REQ:
+                            asyncio.create_task(self._handle_fast_screenshot_req())
+
+                        elif msg_type == MSG_OPEN_CHANNEL:
                             (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
                             asyncio.create_task(self._open_channel(ch_id))
+
 
                         elif msg_type == MSG_CHANNEL_DATA:
                             (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
@@ -432,6 +441,55 @@ class ClientRemoteEngine:
         except Exception:
             pass
 
+    def _ensure_local_adb_ready(self) -> None:
+        """Prime the local ADB server on the client laptop to enable instantaneous screenshot capture."""
+        try:
+            import subprocess
+            adb_bin = str(Path(__file__).resolve().parent.parent / "src" / "Tools" / "adb" / "adb.exe")
+            if not os.path.isfile(adb_bin):
+                import shutil
+                adb_bin = shutil.which("adb") or "adb"
+            if os.path.isfile(adb_bin):
+                subprocess.run([adb_bin, "start-server"], capture_output=True, timeout=2)
+                subprocess.run([adb_bin, "connect", f"127.0.0.1:{self.emulator_port}"], capture_output=True, timeout=2)
+        except Exception:
+            pass
+
+    def _capture_local_jpeg(self) -> bytes | None:
+        """Capture screenshot locally on client emulator and compress to ~65KB JPEG for fast transfer."""
+        import subprocess
+        adb_bin = str(Path(__file__).resolve().parent.parent / "src" / "Tools" / "adb" / "adb.exe")
+        if not os.path.isfile(adb_bin):
+            import shutil
+            adb_bin = shutil.which("adb") or "adb"
+
+        target = f"127.0.0.1:{self.emulator_port}"
+        try:
+            res = subprocess.run(
+                [adb_bin, "-s", target, "exec-out", "screencap", "-p"],
+                capture_output=True,
+                timeout=1.8,
+            )
+            if res.returncode == 0 and len(res.stdout) > 2000:
+                import cv2
+                import numpy as np
+                img = cv2.imdecode(np.frombuffer(res.stdout, np.uint8), cv2.IMREAD_COLOR)
+                if img is not None:
+                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    return jpg_data.tobytes()
+        except Exception:
+            pass
+        return None
+
+    async def _handle_fast_screenshot_req(self) -> None:
+        """Handle server screenshot request by capturing locally and returning compact JPEG."""
+        try:
+            jpg_bytes = await asyncio.to_thread(self._capture_local_jpeg)
+            if jpg_bytes and self.ws:
+                await self.ws.send(pack_frame(MSG_FAST_SCREENSHOT_RESP, jpg_bytes))
+        except Exception:
+            pass
+
     def stop(self) -> None:
         self.running = False
         if self.ws and self.loop:
@@ -443,3 +501,4 @@ class ClientRemoteEngine:
                 except Exception:
                     pass
             asyncio.run_coroutine_threadsafe(_send_stop(), self.loop)
+
