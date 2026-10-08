@@ -65,18 +65,18 @@ _ensure_python_310()
 
 def _ensure_dependencies():
     """Ensure all required Python packages (including OpenCV, PySide6, etc.) are installed."""
-    missing = []
     checks = [
-        ("PySide6", "PySide6>=6.5.0"),
+        ("PySide6", "PySide6"),
         ("websockets", "websockets>=13.0"),
-        ("cv2", "opencv-python>=4.8.0"),
-        ("numpy", "numpy>=1.24.0"),
-        ("PIL", "pillow>=9.5.0"),
-        ("ppadb", "pure-python-adb>=0.3.0"),
-        ("requests", "requests>=2.31.0"),
-        ("psutil", "psutil>=5.9.0"),
-        ("cryptography", "cryptography>=41.0.0"),
+        ("cv2", "opencv-python"),
+        ("numpy", "numpy"),
+        ("PIL", "pillow"),
+        ("ppadb", "pure-python-adb"),
+        ("requests", "requests"),
+        ("psutil", "psutil"),
+        ("cryptography", "cryptography"),
     ]
+    missing = []
     for mod_name, pkg_name in checks:
         try:
             __import__(mod_name)
@@ -84,16 +84,18 @@ def _ensure_dependencies():
             missing.append(pkg_name)
 
     if missing:
-        print(f"[*] Missing required components: {', '.join(missing)}")
-        print("[*] Automatically installing missing components via pip...")
+        print(f"[*] Installing missing components: {', '.join(missing)}...")
         req_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")
+        # Try full requirements.txt first
         if os.path.isfile(req_file):
-            cmd = [sys.executable, "-m", "pip", "install", "-r", req_file]
+            res = subprocess.call([sys.executable, "-m", "pip", "install", "-r", req_file])
+            if res != 0:
+                # If requirements.txt had any issue, install missing packages individually
+                for pkg in missing:
+                    subprocess.call([sys.executable, "-m", "pip", "install", pkg])
         else:
-            cmd = [sys.executable, "-m", "pip", "install"] + missing
-        res = subprocess.call(cmd)
-        if res != 0:
-            print("[-] Warning: Some components failed to install via pip.")
+            for pkg in missing:
+                subprocess.call([sys.executable, "-m", "pip", "install", pkg])
 
 _ensure_dependencies()
 
