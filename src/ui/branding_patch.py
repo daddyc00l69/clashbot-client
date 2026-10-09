@@ -292,6 +292,68 @@ def _patch_main_window_class(cls):
             return _orig_append_log(self, text, *args, **kwargs)
         cls.append_log = _patched_append_log
 
+    if hasattr(cls, "update_builder"):
+        _orig_update_builder = cls.update_builder
+        def _patched_update_builder(self, *args, **kwargs):
+            res = _orig_update_builder(self, *args, **kwargs)
+            try:
+                import json
+                from pathlib import Path
+                val = bool(self.builder_enabled.isChecked())
+                for target_p in [
+                    Path("profiles") / "default" / "config.json",
+                    Path("src") / "profiles" / "default" / "config.json",
+                    Path("profiles") / "config.json",
+                    Path("src") / "profiles" / "config.json",
+                ]:
+                    if target_p.exists():
+                        try:
+                            with open(target_p, "r", encoding="utf-8") as f:
+                                d = json.load(f)
+                            d["BUILDER_ENABLED"] = val
+                            with open(target_p, "w", encoding="utf-8") as f:
+                                json.dump(d, f, indent=2)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            return res
+        cls.update_builder = _patched_update_builder
+
+    if hasattr(cls, "start_bot"):
+        _orig_start_bot = cls.start_bot
+        def _patched_start_bot(self, *args, **kwargs):
+            for updater in ["update_builder", "update_general", "update_attack_army", "update_donations", "update_upgrade_research"]:
+                if hasattr(self, updater):
+                    try:
+                        getattr(self, updater)()
+                    except Exception:
+                        pass
+            try:
+                import json
+                from pathlib import Path
+                if hasattr(self, "builder_enabled") and self.builder_enabled:
+                    val = bool(self.builder_enabled.isChecked())
+                    for target_p in [
+                        Path("profiles") / "default" / "config.json",
+                        Path("src") / "profiles" / "default" / "config.json",
+                        Path("profiles") / "config.json",
+                        Path("src") / "profiles" / "config.json",
+                    ]:
+                        if target_p.exists():
+                            try:
+                                with open(target_p, "r", encoding="utf-8") as f:
+                                    d = json.load(f)
+                                d["BUILDER_ENABLED"] = val
+                                with open(target_p, "w", encoding="utf-8") as f:
+                                    json.dump(d, f, indent=2)
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+            return _orig_start_bot(self, *args, **kwargs)
+        cls.start_bot = _patched_start_bot
+
 
 def _patch_mini_window_class(cls):
     """Patch MiniWindow methods."""

@@ -94,7 +94,7 @@ def main(stats):
         except Exception as e:
             print(f"[!] Warning reading client_config.json: {e}")
 
-    # 2. Load village/bot configuration from active profile
+    # 2. Gather accurate bot configuration from user settings
     profile_config = {}
     active_profile = "default"
     try:
@@ -106,24 +106,10 @@ def main(stats):
     except Exception:
         pass
 
-    try:
-        from profiles.config_manager import ConfigManager
-        cm = ConfigManager()
-        profile_config.update(cm.load())
-        active_data = cm.load(active_profile)
-        if active_data:
-            profile_config.update(active_data)
-    except Exception:
-        pass
-
-    # Disk candidates: global defaults first, active profile LAST so active user settings always win
+    # Step A: Load default templates first as baseline
     for candidate in [
-        _project_root / "profiles" / "config.json",
-        _project_root / "src" / "profiles" / "config.json",
         _project_root / "profiles" / "default" / "config.json",
         _project_root / "src" / "profiles" / "default" / "config.json",
-        _project_root / "profiles" / active_profile / "config.json",
-        _project_root / "src" / "profiles" / active_profile / "config.json",
     ]:
         if candidate.exists():
             try:
@@ -133,6 +119,74 @@ def main(stats):
                         profile_config.update(loaded)
             except Exception:
                 pass
+
+    # Step B: Load profile-specific config if active profile is custom
+    try:
+        from profiles.config_manager import ConfigManager
+        cm = ConfigManager()
+        if active_profile and active_profile != "default":
+            active_data = cm.load(active_profile)
+            if active_data:
+                profile_config.update(active_data)
+        for candidate in [
+            _project_root / "profiles" / active_profile / "config.json",
+            _project_root / "src" / "profiles" / active_profile / "config.json",
+        ]:
+            if candidate.exists() and active_profile != "default":
+                try:
+                    with open(candidate, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                        if isinstance(loaded, dict):
+                            profile_config.update(loaded)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # Step C: Load user global settings (src/profiles/config.json) LAST.
+    # In ClashBot AI UI, all tab controls save to global config when current_profile is None.
+    # Therefore, global user settings represent the user's active UI choices and MUST OVERRIDE templates!
+    try:
+        from profiles.config_manager import ConfigManager
+        cm = ConfigManager()
+        global_data = cm.load(None)
+        if global_data:
+            profile_config.update(global_data)
+    except Exception:
+        pass
+
+    for candidate in [
+        _project_root / "profiles" / "config.json",
+        _project_root / "src" / "profiles" / "config.json",
+    ]:
+        if candidate.exists():
+            try:
+                with open(candidate, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                    if isinstance(loaded, dict):
+                        profile_config.update(loaded)
+            except Exception:
+                pass
+
+    # Step D: Read directly from active MainWindow widgets if the GUI is running
+    try:
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            for widget in app.topLevelWidgets():
+                if widget.__class__.__name__ == "MainWindow":
+                    # Flush tab save methods to ensure latest UI inputs are saved
+                    for updater in ["update_builder", "update_general", "update_attack_army", "update_donations", "update_upgrade_research"]:
+                        if hasattr(widget, updater):
+                            try:
+                                getattr(widget, updater)()
+                            except Exception:
+                                pass
+                    if hasattr(widget, "builder_enabled") and widget.builder_enabled:
+                        profile_config["BUILDER_ENABLED"] = bool(widget.builder_enabled.isChecked())
+                    break
+    except Exception:
+        pass
 
     # Read user-selected emulator settings from profiles/config.json
     preferred_emulator = str(profile_config.get("EMULATOR_SELECTION", "")).strip().lower()
