@@ -110,7 +110,7 @@ def save_client_config(cfg: dict) -> None:
 
 
 class VerifyWorker(QThread):
-    """Background worker to verify license & HWID over WebSocket without UI freeze."""
+    """Background worker to verify license & HWID with instant local path and multi-candidate network failover."""
 
     finished = Signal(bool, str, str)  # is_valid, message, user_name
 
@@ -119,63 +119,118 @@ class VerifyWorker(QThread):
         self.server_url = server_url
         self.key = key
         self.hwid = hwid
+        self.working_url: str = ""
 
     def run(self) -> None:
+        # 1. Local License Manager Fast-Path (Instant 0ms validation for host server & local bot)
+        try:
+            from remote_bridge.license_manager import get_license_manager
+            mgr = get_license_manager()
+            if mgr and hasattr(mgr, "verify_license") and mgr.keys:
+                if self.key in mgr.keys:
+                    is_ok, reason, info = mgr.verify_license(self.key, self.hwid)
+                    user = info.get("user", "User") if isinstance(info, dict) else "User"
+                    self.finished.emit(is_ok, reason, user)
+                    return
+        except Exception:
+            pass
+
+        # 2. Asynchronous Multi-Candidate WebSocket Verification (Zero-timeout failover)
         import asyncio
+        import inspect
+        import socket
         import websockets
 
+        def _format_ws_url(url: str) -> str:
+            u = url.strip()
+            if u.startswith("https://"):
+                u = "wss://" + u[8:]
+            elif u.startswith("http://"):
+                u = "ws://" + u[7:]
+            elif not (u.startswith("ws://") or u.startswith("wss://")):
+                u = f"ws://{u}"
+            if not u.endswith("/ws") and not u.endswith("/"):
+                u = f"{u}/ws"
+            return u
+
+        # Candidate endpoints to try
+        candidates: list[str] = []
+        if self.server_url and self.server_url.strip():
+            candidates.append(_format_ws_url(self.server_url))
+
+        # Local loopback & LAN candidates
+        candidates.append(_format_ws_url("ws://127.0.0.1:8765"))
+        try:
+            local_ip = socket.gethostbyname(socket.gethostname())
+            if local_ip and local_ip not in ("127.0.0.1", "0.0.0.0"):
+                candidates.append(_format_ws_url(f"ws://{local_ip}:8765"))
+        except Exception:
+            pass
+
+        # De-duplicate preserving order
+        unique_candidates: list[str] = []
+        seen = set()
+        for c in candidates:
+            if c not in seen:
+                seen.add(c)
+                unique_candidates.append(c)
+
+        auth_payload = json.dumps({
+            "key": self.key,
+            "token": self.key,
+            "hwid": self.hwid,
+            "version": "2.0.0",
+        }).encode("utf-8")
+
         async def _test_auth():
-            ws_url = self.server_url.strip()
-            if ws_url.startswith("https://"):
-                ws_url = "wss://" + ws_url[8:]
-            elif ws_url.startswith("http://"):
-                ws_url = "ws://" + ws_url[7:]
-            elif not (ws_url.startswith("ws://") or ws_url.startswith("wss://")):
-                ws_url = f"ws://{ws_url}"
-            if not ws_url.endswith("/ws") and not ws_url.endswith("/"):
-                ws_url = f"{ws_url}/ws"
+            last_err = ""
+            for cand in unique_candidates:
+                try:
+                    connect_kwargs = {
+                        "open_timeout": 1.8,
+                        "ping_interval": None,
+                    }
+                    sig = inspect.signature(websockets.connect)
+                    bypass_headers = {"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"}
+                    if "additional_headers" in sig.parameters:
+                        connect_kwargs["additional_headers"] = bypass_headers
+                    elif "extra_headers" in sig.parameters:
+                        connect_kwargs["extra_headers"] = bypass_headers
 
-            auth_payload = json.dumps({
-                "key": self.key,
-                "token": self.key,
-                "hwid": self.hwid,
-                "version": "2.0.0",
-            }).encode("utf-8")
+                    async with websockets.connect(cand, **connect_kwargs) as ws:
+                        await ws.send(pack_frame(MSG_AUTH, auth_payload))
+                        resp = await asyncio.wait_for(ws.recv(), timeout=2.5)
 
-            try:
-                async with websockets.connect(
-                    ws_url,
-                    open_timeout=4.0,
-                    ping_interval=None,
-                ) as ws:
-                    await ws.send(pack_frame(MSG_AUTH, auth_payload))
-                    resp = await asyncio.wait_for(ws.recv(), timeout=5.0)
+                        if isinstance(resp, bytes) and len(resp) >= 5:
+                            msg_type = resp[4]
+                            payload = resp[5:].decode("utf-8", errors="ignore")
 
-                    if isinstance(resp, bytes) and len(resp) >= 5:
-                        msg_type = resp[4]
-                        payload = resp[5:].decode("utf-8", errors="ignore")
+                            data = {}
+                            try:
+                                data = json.loads(payload)
+                            except Exception:
+                                pass
 
-                        data = {}
-                        try:
-                            data = json.loads(payload)
-                        except Exception:
-                            pass
+                            if msg_type == MSG_AUTH_OK:
+                                user = data.get("user", "User") if isinstance(data, dict) else "User"
+                                msg = data.get("message", "License Verified") if isinstance(data, dict) else payload
+                                self.working_url = cand
+                                return True, msg or "License Verified", user
+                            elif msg_type == MSG_AUTH_FAIL:
+                                err_msg = data.get("error", payload) if isinstance(data, dict) else payload
+                                return False, err_msg or "Authentication failed.", ""
+                except asyncio.TimeoutError:
+                    last_err = "Server connection timed out."
+                    continue
+                except Exception as e:
+                    err = str(e)
+                    if "10061" in err or "refused" in err.lower():
+                        last_err = "Server is offline (connection refused)."
+                    else:
+                        last_err = f"Connection error: {err}"
+                    continue
 
-                        if msg_type == MSG_AUTH_OK:
-                            user = data.get("user", "User") if isinstance(data, dict) else "User"
-                            msg = data.get("message", "License Verified") if isinstance(data, dict) else payload
-                            return True, msg or "License Verified", user
-                        else:
-                            err_msg = data.get("error", payload) if isinstance(data, dict) else payload
-                            return False, err_msg or "Authentication failed.", ""
-                    return False, "Unexpected response from server.", ""
-            except asyncio.TimeoutError:
-                return False, "Connection timed out. Server did not respond.", ""
-            except Exception as e:
-                err = str(e)
-                if "10061" in err or "refused" in err.lower():
-                    return False, "Unable to connect. Server is offline.", ""
-                return False, f"Connection error: {err}", ""
+            return False, last_err or "Unable to connect to server.", ""
 
         try:
             loop = asyncio.new_event_loop()
@@ -466,6 +521,8 @@ class ClashBotLoginDialog(QDialog):
             self.cfg["token"] = key
             self.cfg["remember_key"] = rem
             self.cfg["hwid"] = self.hwid
+            if self.worker and getattr(self.worker, "working_url", ""):
+                self.cfg["server_url"] = self.worker.working_url
             save_client_config(self.cfg)
 
             QTimer.singleShot(400, self.accept)
