@@ -8,3 +8,5 @@ src/logs/
 .env
 dist/
 build/
+src/Tools/tesseract/
+src/Tools/uiautomator2_data/

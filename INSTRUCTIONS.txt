@@ -1,37 +1,32 @@
 ========================================================================
-CLASHBOT AI - REMOTE CLIENT INSTRUCTIONS FOR YOUR FRIEND
+CLASHBOT AI — CLIENT DASHBOARD INSTRUCTIONS
 ========================================================================
 
-Welcome to ClashBot AI! You have the full authentic ClashBot AI Pro suite
-running directly on your laptop with live cloud attack intelligence.
+Welcome to ClashBot AI! All heavy bot logic and AI combat intelligence
+run securely on the server. Your client is a sleek, lightweight controller.
 
 FIRST TIME SETUP:
-- Simply double-click `install.bat` (or `run_bot.bat`).
-- The automated installer will automatically configure Python and all required
-  packages on your PC without needing manual setup!
+- Double-click `install.bat` (or `run_bot.bat`).
+- It will automatically install requirements and launch the app.
 
 HOW TO RUN:
 
 1. START YOUR ANDROID EMULATOR:
-   - Open BlueStacks, LDPlayer, or MuMu Player.
+   - Open BlueStacks, LDPlayer, MuMu Player, or Nox.
    - Start Clash of Clans.
-   - Ensure Android Debug Bridge (ADB) is enabled in emulator settings:
+   - Ensure ADB is enabled in emulator settings:
      * BlueStacks: Settings -> Advanced -> Android Debug Bridge -> ON
      * LDPlayer  : Settings -> Other Settings -> ADB Debug -> Local / Remote
      * MuMu      : Settings -> Basic -> ADB -> ON
 
-2. START THE CLASHBOT AI UI:
+2. LAUNCH CLASHBOT AI:
    - Double-click `run_bot.bat`.
-   - The authentic ClashBot AI Pro window will open on your screen!
-   - (If needed, verify the server URL in `client_config.json`).
+   - Enter your license key (e.g. CB-XXXXX-XXXXX-XXXXX-X) in the clean login dialog.
+   - Your hardware ID is silently verified with the server.
 
-3. CHOOSE SETTINGS & START:
-   - In the ClashBot AI interface, configure your desired troops, farming
-     thresholds, and options across the tabs.
-   - Click "Start Bot"!
-   - The bot will automatically automate your emulator while displaying live
-     combat logs and loot stats directly in the application window.
-
-4. STOPPING THE BOT:
-   - Click "Stop Bot" in the interface anytime.
+3. CONTROL & MONITOR:
+   - Click "▶ Start Bot" to begin autonomous combat intelligence on the cloud server.
+   - Watch live loot stats (Gold, Elixir, Dark Elixir, Attacks) update in real-time.
+   - View live server actions streamed directly to your execution feed.
+   - Click "⏸ Pause" or "⏹ Stop Bot" anytime.
 ========================================================================

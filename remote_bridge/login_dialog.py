@@ -88,7 +88,7 @@ def load_client_config() -> dict:
         except Exception:
             pass
     return {
-        "server_url": "ws://110.227.184.49:8765",
+        "server_url": "ws://127.0.0.1:8765",
         "token": "CLASH-VIP-2026",
         "license_key": "CLASH-VIP-2026",
         "remember_key": True,
@@ -124,7 +124,10 @@ class VerifyWorker(QThread):
     def run(self) -> None:
         # 1. Local License Manager Fast-Path (Instant 0ms validation for host server & local bot)
         try:
-            from remote_bridge.license_manager import get_license_manager
+            try:
+                from server.license_manager import get_license_manager
+            except ImportError:
+                from remote_bridge.license_manager import get_license_manager
             mgr = get_license_manager()
             if mgr and hasattr(mgr, "verify_license") and mgr.keys:
                 if self.key in mgr.keys:
@@ -182,55 +185,76 @@ class VerifyWorker(QThread):
             "version": "2.0.0",
         }).encode("utf-8")
 
+        async def _probe_single(cand: str):
+            try:
+                connect_kwargs = {
+                    "open_timeout": 2.5,
+                    "ping_interval": None,
+                }
+                sig = inspect.signature(websockets.connect)
+                bypass_headers = {"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"}
+                if "additional_headers" in sig.parameters:
+                    connect_kwargs["additional_headers"] = bypass_headers
+                elif "extra_headers" in sig.parameters:
+                    connect_kwargs["extra_headers"] = bypass_headers
+
+                async with websockets.connect(cand, **connect_kwargs) as ws:
+                    await ws.send(pack_frame(MSG_AUTH, auth_payload))
+                    resp = await asyncio.wait_for(ws.recv(), timeout=3.0)
+
+                    if isinstance(resp, bytes) and len(resp) >= 5:
+                        msg_type = resp[4]
+                        payload = resp[5:].decode("utf-8", errors="ignore")
+
+                        data = {}
+                        try:
+                            data = json.loads(payload)
+                        except Exception:
+                            pass
+
+                        if msg_type == MSG_AUTH_OK:
+                            user = data.get("user", "User") if isinstance(data, dict) else "User"
+                            msg = data.get("message", "License Verified") if isinstance(data, dict) else payload
+                            return (True, msg or "License Verified", user, cand)
+                        elif msg_type == MSG_AUTH_FAIL:
+                            err_msg = data.get("error", payload) if isinstance(data, dict) else payload
+                            return (False, err_msg or "Authentication failed.", "", cand)
+            except asyncio.CancelledError:
+                return (None, "Cancelled", "", cand)
+            except asyncio.TimeoutError:
+                return (None, "Server connection timed out.", "", cand)
+            except Exception as e:
+                err = str(e)
+                if "10061" in err or "refused" in err.lower():
+                    return (None, "Server is offline (connection refused).", "", cand)
+                return (None, f"Connection error: {err}", "", cand)
+            return (None, "Unexpected server response.", "", cand)
+
         async def _test_auth():
+            if not unique_candidates:
+                return False, "No valid server addresses configured.", ""
+
+            tasks = [asyncio.create_task(_probe_single(c)) for c in unique_candidates]
+            auth_rejection = None
             last_err = ""
-            for cand in unique_candidates:
-                try:
-                    connect_kwargs = {
-                        "open_timeout": 1.8,
-                        "ping_interval": None,
-                    }
-                    sig = inspect.signature(websockets.connect)
-                    bypass_headers = {"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"}
-                    if "additional_headers" in sig.parameters:
-                        connect_kwargs["additional_headers"] = bypass_headers
-                    elif "extra_headers" in sig.parameters:
-                        connect_kwargs["extra_headers"] = bypass_headers
 
-                    async with websockets.connect(cand, **connect_kwargs) as ws:
-                        await ws.send(pack_frame(MSG_AUTH, auth_payload))
-                        resp = await asyncio.wait_for(ws.recv(), timeout=2.5)
+            for fut in asyncio.as_completed(tasks):
+                status, msg, user, cand = await fut
+                if status is True:
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+                    self.working_url = cand
+                    return True, msg, user
+                elif status is False:
+                    auth_rejection = msg
+                elif status is None:
+                    last_err = msg
 
-                        if isinstance(resp, bytes) and len(resp) >= 5:
-                            msg_type = resp[4]
-                            payload = resp[5:].decode("utf-8", errors="ignore")
+            if auth_rejection:
+                return False, auth_rejection, ""
 
-                            data = {}
-                            try:
-                                data = json.loads(payload)
-                            except Exception:
-                                pass
-
-                            if msg_type == MSG_AUTH_OK:
-                                user = data.get("user", "User") if isinstance(data, dict) else "User"
-                                msg = data.get("message", "License Verified") if isinstance(data, dict) else payload
-                                self.working_url = cand
-                                return True, msg or "License Verified", user
-                            elif msg_type == MSG_AUTH_FAIL:
-                                err_msg = data.get("error", payload) if isinstance(data, dict) else payload
-                                return False, err_msg or "Authentication failed.", ""
-                except asyncio.TimeoutError:
-                    last_err = "Server connection timed out."
-                    continue
-                except Exception as e:
-                    err = str(e)
-                    if "10061" in err or "refused" in err.lower():
-                        last_err = "Server is offline (connection refused)."
-                    else:
-                        last_err = f"Connection error: {err}"
-                    continue
-
-            return False, last_err or "Unable to connect to server.", ""
+            return False, "Server is offline or unreachable. Please launch START_SERVER.bat on the host PC.", ""
 
         try:
             loop = asyncio.new_event_loop()
@@ -491,7 +515,7 @@ class ClashBotLoginDialog(QDialog):
 
     def _start_verification(self) -> None:
         key = self.key_edit.text().strip()
-        url = self.cfg.get("server_url", "ws://110.227.184.49:8765")
+        url = self.cfg.get("server_url", "ws://127.0.0.1:8765")
 
         if not key:
             self._set_status("Please enter a license key.", "#FF453A")
@@ -517,6 +541,7 @@ class ClashBotLoginDialog(QDialog):
             key = self.key_edit.text().strip()
             rem = self.rem_cb.isChecked()
 
+            self.cfg["key"] = key
             self.cfg["license_key"] = key
             self.cfg["token"] = key
             self.cfg["remember_key"] = rem

@@ -1,0 +1,1054 @@
+{
+  "HOME_UPGRADES": {
+    "home_upgrade_archer_queen": {
+      "label": "Archer Queen",
+      "category": "Heroes",
+      "resource": "dark"
+    },
+    "home_upgrade_dragon_duke": {
+      "label": "Dragon Duke",
+      "category": "Heroes",
+      "resource": "dark"
+    },
+    "home_upgrade_grand_warden": {
+      "label": "Grand Warden",
+      "category": "Heroes",
+      "resource": "elixir"
+    },
+    "home_upgrade_barbarian_king": {
+      "label": "Barbarian King",
+      "category": "Heroes",
+      "resource": "dark"
+    },
+    "home_upgrade_minion_prince": {
+      "label": "Minion Prince",
+      "category": "Heroes",
+      "resource": "dark"
+    },
+    "home_upgrade_royal_champion": {
+      "label": "Royal Champion",
+      "category": "Heroes",
+      "resource": "dark"
+    },
+    "home_upgrade_longshot": {
+      "label": "Longshot",
+      "category": "Guardians",
+      "resource": "elixir"
+    },
+    "home_upgrade_smasher": {
+      "label": "Smasher",
+      "category": "Guardians",
+      "resource": "elixir"
+    },
+    "home_upgrade_logger": {
+      "label": "Logger",
+      "category": "Guardians",
+      "resource": "elixir"
+    },
+    "home_upgrade_air_bomb": {
+      "label": "Air Bomb",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "home_upgrade_bomb": {
+      "label": "Bomb",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "home_upgrade_tornado_trap": {
+      "label": "Tornado Trap",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "home_upgrade_giga_bomb": {
+      "label": "Giga Bomb",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "home_upgrade_giant_bomb": {
+      "label": "Giant Bomb",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "home_upgrade_seeking_air_mine": {
+      "label": "Seeking Air Mine",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "home_upgrade_skeleton_trap": {
+      "label": "Skeleton Trap",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "home_upgrade_spring_trap": {
+      "label": "Spring Trap",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "home_upgrade_townhall": {
+      "label": "Townhall",
+      "category": "Townhall",
+      "resource": "gold"
+    },
+    "home_upgrade_army_camp": {
+      "label": "Army Camp",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_barracks": {
+      "label": "Barracks",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_blacksmith": {
+      "label": "Blacksmith",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_clan_castle": {
+      "label": "Clan Castle",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_dark_barracks": {
+      "label": "Dark Barracks",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_dark_elixir_storage": {
+      "label": "Dark Elixir Storage",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_dark_spell_factory": {
+      "label": "Dark Spell Factory",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_elixir_storage": {
+      "label": "Elixir Storage",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_gold_storage": {
+      "label": "Gold Storage",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_hero_hall": {
+      "label": "Hero Hall",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_laboratory": {
+      "label": "Laboratory",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_pet_house": {
+      "label": "Pet House",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_spell_factory": {
+      "label": "Spell Factory",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_workshop": {
+      "label": "Workshop",
+      "category": "Offence",
+      "resource": "elixir"
+    },
+    "home_upgrade_archer_tower": {
+      "label": "Archer Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_bomb_tower": {
+      "label": "Bomb Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_cannon": {
+      "label": "Cannon",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_air_sweeper": {
+      "label": "Air Sweeper",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_xbow": {
+      "label": "X-Bow",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_builders_hut": {
+      "label": "Builder's Hut",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "builder_hut": {
+      "label": "Builder Hut",
+      "category": "Buildings",
+      "resource": "gold"
+    },
+    "home_upgrade_boat": {
+      "label": "Builder Boat",
+      "category": "Buildings",
+      "resource": "gold"
+    },
+    "home_upgrade_dark_elixir_drill": {
+      "label": "Dark Elixir Drill",
+      "category": "Buildings",
+      "resource": "elixir"
+    },
+    "home_upgrade_elixir_collector": {
+      "label": "Elixir Collector",
+      "category": "Buildings",
+      "resource": "gold"
+    },
+    "home_upgrade_firespitter": {
+      "label": "Firespitter",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_gold_mine": {
+      "label": "Gold Mine",
+      "category": "Buildings",
+      "resource": "elixir"
+    },
+    "home_upgrade_hidden_tesla": {
+      "label": "Hidden Tesla",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_inferno_artillery": {
+      "label": "Inferno Artillery",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_inferno_tower": {
+      "label": "Inferno Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_monolith": {
+      "label": "Monolith",
+      "category": "Defences",
+      "resource": "dark"
+    },
+    "home_upgrade_mortar": {
+      "label": "Mortar",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_multi_archer_tower": {
+      "label": "Multi-Archer Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_multi_gear_tower": {
+      "label": "Multi-Gear Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_revenge_tower": {
+      "label": "Revenge Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_ricochet_cannon": {
+      "label": "Ricochet Cannon",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_air_defense": {
+      "label": "Air Defense",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_scattershot": {
+      "label": "Scattershot",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_spell_tower": {
+      "label": "Spell Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_super_wizard_tower": {
+      "label": "Super Wizard Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_wizard_tower": {
+      "label": "Wizard Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "home_upgrade_archer_tower_supercharged": {
+      "label": "Archer Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_bomb_tower_supercharged": {
+      "label": "Bomb Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_cannon_supercharged": {
+      "label": "Cannon (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_air_sweeper_supercharged": {
+      "label": "Air Sweeper (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_xbow_supercharged": {
+      "label": "X-Bow (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_builders_hut_supercharged": {
+      "label": "Builder's Hut (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_dark_elixir_drill_supercharged": {
+      "label": "Dark Elixir Drill (Supercharged)",
+      "category": "Supercharged",
+      "resource": "elixir"
+    },
+    "home_upgrade_elixir_collector_supercharged": {
+      "label": "Elixir Collector (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_firespitter_supercharged": {
+      "label": "Firespitter (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_gold_mine_supercharged": {
+      "label": "Gold Mine (Supercharged)",
+      "category": "Supercharged",
+      "resource": "elixir"
+    },
+    "home_upgrade_hidden_tesla_supercharged": {
+      "label": "Hidden Tesla (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_inferno_artillery_supercharged": {
+      "label": "Inferno Artillery (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_inferno_tower_supercharged": {
+      "label": "Inferno Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_monolith_supercharged": {
+      "label": "Monolith (Supercharged)",
+      "category": "Supercharged",
+      "resource": "dark"
+    },
+    "home_upgrade_mortar_supercharged": {
+      "label": "Mortar (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_multi_archer_tower_supercharged": {
+      "label": "Multi-Archer Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_multi_gear_tower_supercharged": {
+      "label": "Multi-Gear Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_revenge_tower_supercharged": {
+      "label": "Revenge Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_ricochet_cannon_supercharged": {
+      "label": "Ricochet Cannon (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_air_defense_supercharged": {
+      "label": "Air Defense (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_scattershot_supercharged": {
+      "label": "Scattershot (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_spell_tower_supercharged": {
+      "label": "Spell Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_super_wizard_tower_supercharged": {
+      "label": "Super Wizard Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    },
+    "home_upgrade_wizard_tower_supercharged": {
+      "label": "Wizard Tower (Supercharged)",
+      "category": "Supercharged",
+      "resource": "gold"
+    }
+  },
+  "HOME_RESEARCH": {
+    "home_research_archer": {
+      "label": "Archer",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_baby_dragon": {
+      "label": "Baby Dragon",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_barbarian": {
+      "label": "Barbarian",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_dragon": {
+      "label": "Dragon",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_druid": {
+      "label": "Druid",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_electro_dragon": {
+      "label": "Electro Dragon",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_electro_titan": {
+      "label": "Electro Titan",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_furnace": {
+      "label": "Furnace",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_giant": {
+      "label": "Giant",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_healer": {
+      "label": "Healer",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_miner": {
+      "label": "Miner",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_thrower": {
+      "label": "Thrower",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_wall_breaker": {
+      "label": "Wall Breaker",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_wizard": {
+      "label": "Wizard",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_yeti": {
+      "label": "Yeti",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_balloon": {
+      "label": "Balloon",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_dragon_rider": {
+      "label": "Dragon Rider",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_pekka": {
+      "label": "P.E.K.K.A",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_root_rider": {
+      "label": "Root Rider",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_meteor_golem": {
+      "label": "Meteor Golem",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_bowler": {
+      "label": "Bowler",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_goblin": {
+      "label": "Goblin",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "home_research_golem": {
+      "label": "Golem",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_hog_rider": {
+      "label": "Hog Rider",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_ice_golem": {
+      "label": "Ice Golem",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_lava_hound": {
+      "label": "Lava Hound",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_minion": {
+      "label": "Minion",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_valkyrie": {
+      "label": "Valkyrie",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_headhunter": {
+      "label": "Headhunter",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_apprentice_warden": {
+      "label": "Apprentice Warden",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_witch": {
+      "label": "Witch",
+      "category": "DE Troops",
+      "resource": "dark"
+    },
+    "home_research_bat_spell": {
+      "label": "Bat Spell",
+      "category": "DE Spells",
+      "resource": "dark"
+    },
+    "home_research_ice_block_spell": {
+      "label": "Ice Block Spell",
+      "category": "DE Spells",
+      "resource": "dark"
+    },
+    "home_research_earthquake_spell": {
+      "label": "Earthquake Spell",
+      "category": "DE Spells",
+      "resource": "dark"
+    },
+    "home_research_haste_spell": {
+      "label": "Haste Spell",
+      "category": "DE Spells",
+      "resource": "dark"
+    },
+    "home_research_healing_spell": {
+      "label": "Healing Spell",
+      "category": "DE Spells",
+      "resource": "dark"
+    },
+    "home_research_skeleton_spell": {
+      "label": "Skeleton Spell",
+      "category": "DE Spells",
+      "resource": "dark"
+    },
+    "home_research_clone_spell": {
+      "label": "Clone Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_freeze_spell": {
+      "label": "Freeze Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_invisibility_spell": {
+      "label": "Invisibility Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_jump_spell": {
+      "label": "Jump Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_lightning_spell": {
+      "label": "Lightning Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_overgrowth_spell": {
+      "label": "Overgrowth Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_poison_spell": {
+      "label": "Poison Spell",
+      "category": "DE Spells",
+      "resource": "dark"
+    },
+    "home_research_rage_spell": {
+      "label": "Rage Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_recall_spell": {
+      "label": "Recall Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_revive_spell": {
+      "label": "Revive Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_totem_spell": {
+      "label": "Totem Spell",
+      "category": "Spells",
+      "resource": "elixir"
+    },
+    "home_research_battle_blimp": {
+      "label": "Battle Blimp",
+      "category": "Siege",
+      "resource": "elixir"
+    },
+    "home_research_battle_drill": {
+      "label": "Battle Drill",
+      "category": "Siege",
+      "resource": "elixir"
+    },
+    "home_research_flame_flinger": {
+      "label": "Flame Flinger",
+      "category": "Siege",
+      "resource": "elixir"
+    },
+    "home_research_log_launcher": {
+      "label": "Log Launcher",
+      "category": "Siege",
+      "resource": "elixir"
+    },
+    "home_research_siege_barracks": {
+      "label": "Siege Barracks",
+      "category": "Siege",
+      "resource": "elixir"
+    },
+    "home_research_sky_wagon": {
+      "label": "Sky Wagon",
+      "category": "Siege",
+      "resource": "elixir"
+    },
+    "home_research_stone_slammer": {
+      "label": "Stone Slammer",
+      "category": "Siege",
+      "resource": "elixir"
+    },
+    "home_research_troop_launcher": {
+      "label": "Troop Launcher",
+      "category": "Siege",
+      "resource": "elixir"
+    },
+    "home_research_wall_wrecker": {
+      "label": "Wall Wrecker",
+      "category": "Siege",
+      "resource": "elixir"
+    }
+  },
+  "BB_UPGRADES": {
+    "bb_upgrade_battle_machine": {
+      "label": "Battle Machine",
+      "category": "Heroes",
+      "resource": "elixir"
+    },
+    "bb_upgrade_battle_copter": {
+      "label": "Battle Copter",
+      "category": "Heroes",
+      "resource": "elixir"
+    },
+    "bb_upgrade_air_bombs": {
+      "label": "Air Bombs",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "bb_upgrade_mega_mine": {
+      "label": "Mega Mine",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "bb_upgrade_mine": {
+      "label": "Mine",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "bb_upgrade_push_trap": {
+      "label": "Push Trap",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "bb_upgrade_spring_trap": {
+      "label": "Spring Trap",
+      "category": "Traps",
+      "resource": "gold"
+    },
+    "bb_upgrade_archer_tower": {
+      "label": "Archer Tower",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_xbow": {
+      "label": "X-Bow",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_cannon": {
+      "label": "Cannon",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_crusher": {
+      "label": "Crusher",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_double_cannon": {
+      "label": "Double Cannon",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_firecrackers": {
+      "label": "Firecrackers",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_giant_cannon": {
+      "label": "Giant Cannon",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_gold_mine": {
+      "label": "Gold Mine",
+      "category": "Buildings",
+      "resource": "elixir"
+    },
+    "bb_upgrade_gold_storage": {
+      "label": "Gold Storage",
+      "category": "Buildings",
+      "resource": "elixir"
+    },
+    "bb_upgrade_guard_post": {
+      "label": "Guard Post",
+      "category": "Buildings",
+      "resource": "gold"
+    },
+    "bb_upgrade_healing_hut": {
+      "label": "Healing Hut",
+      "category": "Buildings",
+      "resource": "elixir"
+    },
+    "bb_upgrade_builder_barracks": {
+      "label": "Builder Barracks",
+      "category": "Buildings",
+      "resource": "elixir"
+    },
+    "bb_upgrade_star_laboratory": {
+      "label": "Star Laboratory",
+      "category": "Buildings",
+      "resource": "elixir"
+    },
+    "bb_upgrade_elixir_collector": {
+      "label": "Elixir Collector",
+      "category": "Buildings",
+      "resource": "gold"
+    },
+    "bb_upgrade_elixir_storage": {
+      "label": "Elixir Storage",
+      "category": "Buildings",
+      "resource": "gold"
+    },
+    "bb_upgrade_hidden_tesla": {
+      "label": "Hidden Tesla",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_lava_launcher": {
+      "label": "Lava Launcher",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_multi_mortar": {
+      "label": "Multi Mortar",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_mega_tesla": {
+      "label": "Mega Tesla",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_ottos_outpost": {
+      "label": "0.T.T.0's Outpost",
+      "category": "Buildings",
+      "resource": "gold"
+    },
+    "bb_upgrade_roaster": {
+      "label": "Roaster",
+      "category": "Defences",
+      "resource": "gold"
+    },
+    "bb_upgrade_gem_mine": {
+      "label": "Gem Mine",
+      "category": "Buildings",
+      "resource": "gold"
+    }
+  },
+  "BB_RESEARCH": {
+    "bb_research_baby_dragon": {
+      "label": "Baby Dragon",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_beta_minion": {
+      "label": "Beta Minion",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_bomber": {
+      "label": "Bomber",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_boxer_giant": {
+      "label": "Boxer Giant",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_cannon_cart": {
+      "label": "Cannon Cart",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_drop_ship": {
+      "label": "Drop Ship",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_electrofire_wizard": {
+      "label": "Electrofire Wizard",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_hog_glider": {
+      "label": "Hog Glider",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_night_witch": {
+      "label": "Night Witch",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_power_pekka": {
+      "label": "Power P.E.K.K.A",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_raged_barbarian": {
+      "label": "Raged Barbarian",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    },
+    "bb_research_sneaky_archer": {
+      "label": "Sneaky Archer",
+      "category": "Elixir Troops",
+      "resource": "elixir"
+    }
+  },
+  "PET_UPGRADES": {
+    "pet_upgrade_angry_jelly": {
+      "label": "Angry Jelly",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_diggy": {
+      "label": "Diggy",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_electro_owl": {
+      "label": "Electro Owl",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_frosty": {
+      "label": "Frosty",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_greedy_ravern": {
+      "label": "Greedy Raven",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_lassi": {
+      "label": "L.A.S.S.I",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_mighty_yak": {
+      "label": "Mighty Yak",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_phoenix": {
+      "label": "Phoenix",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_poison_lizard": {
+      "label": "Poison Lizard",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_sneezy": {
+      "label": "Sneezy",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_spirit_fox": {
+      "label": "Spirit Fox",
+      "category": "Pets",
+      "resource": "dark"
+    },
+    "pet_upgrade_unicorn": {
+      "label": "Unicorn",
+      "category": "Pets",
+      "resource": "dark"
+    }
+  },
+  "PET_PRIORITY_FLAT": [
+    "pet_upgrade_phoenix",
+    "pet_upgrade_spirit_fox",
+    "pet_upgrade_angry_jelly",
+    "pet_upgrade_frosty",
+    "pet_upgrade_sneezy",
+    "pet_upgrade_electro_owl",
+    "pet_upgrade_unicorn",
+    "pet_upgrade_diggy",
+    "pet_upgrade_greedy_ravern",
+    "pet_upgrade_lassi",
+    "pet_upgrade_mighty_yak",
+    "pet_upgrade_poiso_lizard"
+  ],
+  "PET_UPGRADE_ORDER": [
+    "pet_upgrade_phoenix",
+    "pet_upgrade_spirit_fox",
+    "pet_upgrade_angry_jelly",
+    "pet_upgrade_frosty",
+    "pet_upgrade_sneezy",
+    "pet_upgrade_electro_owl",
+    "pet_upgrade_unicorn",
+    "pet_upgrade_diggy",
+    "pet_upgrade_greedy_ravern",
+    "pet_upgrade_lassi",
+    "pet_upgrade_mighty_yak",
+    "pet_upgrade_poiso_lizard"
+  ],
+  "CATEGORY_ORDER": [
+    "Elixir Troops",
+    "Spells",
+    "DE Spells",
+    "DE Troops",
+    "Siege",
+    "Heroes",
+    "Guardians",
+    "Offence",
+    "Townhall",
+    "Buildings",
+    "Defences",
+    "Traps",
+    "Supercharged"
+  ],
+  "SUPERCHARGEABLE_HOME_UPGRADE_KEYS": [
+    "home_upgrade_archer_tower",
+    "home_upgrade_bomb_tower",
+    "home_upgrade_cannon",
+    "home_upgrade_air_sweeper",
+    "home_upgrade_xbow",
+    "home_upgrade_builders_hut",
+    "home_upgrade_dark_elixir_drill",
+    "home_upgrade_elixir_collector",
+    "home_upgrade_firespitter",
+    "home_upgrade_gold_mine",
+    "home_upgrade_hidden_tesla",
+    "home_upgrade_inferno_artillery",
+    "home_upgrade_inferno_tower",
+    "home_upgrade_monolith",
+    "home_upgrade_mortar",
+    "home_upgrade_multi_archer_tower",
+    "home_upgrade_multi_gear_tower",
+    "home_upgrade_revenge_tower",
+    "home_upgrade_ricochet_cannon",
+    "home_upgrade_air_defense",
+    "home_upgrade_scattershot",
+    "home_upgrade_spell_tower",
+    "home_upgrade_super_wizard_tower",
+    "home_upgrade_wizard_tower"
+  ],
+  "DISAMBIGUATION_CONFLICTS": {
+    "home_upgrade_bomb": [
+      "home_upgrade_air_bomb",
+      "home_upgrade_giga_bomb",
+      "home_upgrade_giant_bomb",
+      "home_upgrade_bomb_tower"
+    ],
+    "home_research_dragon": [
+      "home_research_baby_dragon",
+      "home_research_electro_dragon",
+      "home_research_dragon_rider"
+    ]
+  }
+}

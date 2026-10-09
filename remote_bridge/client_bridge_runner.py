@@ -51,10 +51,20 @@ class ClientRemoteEngine:
     LATEST_SERVER_CALL: dict | None = None
     BOT_SPEED: str = "balanced"
 
-    def __init__(self, server_url: str, token: str, emulator_port: int = 5555, stats=None) -> None:
+    def __init__(
+        self,
+        server_url: str,
+        token: str,
+        emulator_port: int = 5555,
+        preferred_emulator: str = "",
+        preferred_instance: str = "",
+        stats=None,
+    ) -> None:
         self.server_url = server_url
         self.token = token
         self.emulator_port = emulator_port
+        self.preferred_emulator = preferred_emulator
+        self.preferred_instance = preferred_instance
         self.stats = stats
 
         try:
@@ -81,7 +91,6 @@ class ClientRemoteEngine:
             pass
         ClientRemoteEngine.BOT_SPEED = self.bot_speed
 
-
     def _find_emulator_executables(self) -> list[tuple[str, str]]:
         """Find installed emulator executables on Windows."""
         import os
@@ -90,14 +99,15 @@ class ClientRemoteEngine:
             os.path.join(os.path.dirname(__file__), "..", "src", "profiles", "config.json"),
             os.path.join(os.path.dirname(__file__), "..", "profiles", "config.json"),
         ]
-        preferred = ""
+        preferred = (getattr(self, "preferred_emulator", "") or "").lower()
         custom_paths = {}
         for p in cfg_paths:
             if os.path.isfile(p):
                 try:
                     with open(p, "r", encoding="utf-8") as f:
                         cd = json.load(f)
-                        preferred = cd.get("EMULATOR_SELECTION", "").lower()
+                        if not preferred:
+                            preferred = cd.get("EMULATOR_SELECTION", "").lower()
                         custom_paths = cd.get("EMULATOR_INSTALL_PATHS", {})
                     break
                 except Exception:
@@ -122,8 +132,10 @@ class ClientRemoteEngine:
                 r"D:\LDPlayer\dnplayer.exe",
             ]),
             ("MuMu", [
+                r"C:\Program Files\Netease\MuMuPlayer\nx_main\MuMuManager.exe",
                 r"C:\Program Files\Netease\MuMuPlayer\nx_main\MuMuNxMain.exe",
                 r"C:\Program Files\Netease\MuMuPlayer\shell\MuMuPlayer.exe",
+                r"C:\Program Files\MuMuPlayer\nx_main\MuMuManager.exe",
                 r"C:\Program Files\MuMuPlayer\nx_main\MuMuNxMain.exe",
                 r"C:\Program Files\MuMuPlayer\shell\MuMuPlayer.exe",
                 r"C:\Program Files\Netease\MuMuPlayerGlobal-12.0\shell\MuMuPlayer.exe",
@@ -153,16 +165,23 @@ class ClientRemoteEngine:
         cmd = [exe_path]
         name_lower = name.lower()
 
+        inst_str = instance_str or getattr(self, "preferred_instance", "")
         inst_val = ""
-        if instance_str and ":" in instance_str:
-            inst_val = instance_str.split(":", 1)[1].strip()
-        elif instance_str:
-            inst_val = instance_str.strip()
+        if inst_str and ":" in inst_str:
+            inst_val = inst_str.split(":", 1)[1].strip()
+        elif inst_str:
+            inst_val = inst_str.strip()
 
         if "mumu" in name_lower:
-            # MuMu 12 / 6: '-v <index>' boots the actual Android instance
+            # MuMu 12 / 6: launch VM directly via MuMuManager API
             idx = inst_val if inst_val.isdigit() else "0"
-            cmd.extend(["-v", idx])
+            mgr_path = os.path.join(os.path.dirname(exe_path), "MuMuManager.exe")
+            if os.path.isfile(mgr_path):
+                cmd = [mgr_path, "api", "-v", idx, "launch_player"]
+            elif "mumumanager" in exe_path.lower():
+                cmd = [exe_path, "api", "-v", idx, "launch_player"]
+            else:
+                cmd.extend(["-v", idx])
         elif "ldplayer" in name_lower:
             # LDPlayer: 'index=<index>' boots the actual Android instance
             idx = inst_val if inst_val.isdigit() else "0"
@@ -203,7 +222,7 @@ class ClientRemoteEngine:
         launch_cmd = self._build_emulator_command(name, exe_path, pref_inst)
 
         print("=" * 68)
-        print(f"[*] Android emulator is closed. Launching Android device: {name}...")
+        print(f"[*] Android emulator is closed. Launching Android device: {name} (Instance: {pref_inst or '0'})...")
         print(f"[*] Executable: {exe_path}")
         print(f"[*] Command   : {' '.join(launch_cmd)}")
         print("=" * 68)
@@ -214,12 +233,25 @@ class ClientRemoteEngine:
             print(f"[!] Could not launch emulator automatically: {e}")
             return None
 
-        print("[*] Waiting for Android device to boot and initialize ADB (up to 60s)...")
+        print(f"[*] Waiting for Android device {name} (port {self.emulator_port}) to boot ADB (up to 60s)...")
         start_time = time.time()
-        common_ports = [self.emulator_port, 16384, 16416, 5555, 5554, 21503, 7555, 62001, 58526]
+        wait_ports = [self.emulator_port]
+        if pref_inst and ":" in pref_inst:
+            try:
+                idx = int(pref_inst.split(":")[1])
+                if "mumu" in name.lower():
+                    wait_ports.insert(0, 16384 + idx * 32)
+                elif "ldplayer" in name.lower():
+                    wait_ports.insert(0, 5555 + idx * 2)
+            except Exception:
+                pass
+        wait_ports.extend([16416, 16384, 16448, 5555, 5554, 5556, 7555, 21503, 62001])
+        seen_wait = set()
+        clean_wait_ports = [p for p in wait_ports if p and not (p in seen_wait or seen_wait.add(p))]
+
         while time.time() - start_time < 60:
             time.sleep(2)
-            for port in common_ports:
+            for port in clean_wait_ports:
                 try:
                     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                         s.settimeout(0.3)
@@ -234,10 +266,53 @@ class ClientRemoteEngine:
 
     def scan_emulator_port(self) -> int | None:
         """Scan common Android emulator ADB ports to auto-detect active emulator."""
-        common_ports = [self.emulator_port, 5555, 5554, 16384, 21503, 7555, 62001, 58526]
+        # 1. ALWAYS test the user-configured emulator port first!
+        configured_port = self.emulator_port
+        if configured_port and configured_port > 0:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.3)
+                    if s.connect_ex(("127.0.0.1", configured_port)) == 0:
+                        print(f"[+] Detected active Android emulator on 127.0.0.1:{configured_port} (configured port)")
+                        self.emulator_port = configured_port
+                        return configured_port
+            except Exception:
+                pass
+
+        # 2. Check instance-specific calculated port if known
+        pref_inst = getattr(self, "preferred_instance", "")
+        pref_emu = getattr(self, "preferred_emulator", "").lower()
+        inst_port = None
+        if pref_inst and ":" in pref_inst:
+            try:
+                idx = int(pref_inst.split(":")[1])
+                if "mumu" in pref_emu or "mumu" in pref_inst.lower():
+                    inst_port = 16384 + idx * 32
+                elif "ldplayer" in pref_emu or "ldplayer" in pref_inst.lower():
+                    inst_port = 5555 + idx * 2
+            except Exception:
+                pass
+
+        if inst_port and inst_port != configured_port:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.3)
+                    if s.connect_ex(("127.0.0.1", inst_port)) == 0:
+                        print(f"[+] Detected active Android emulator on 127.0.0.1:{inst_port} (instance {pref_inst})")
+                        self.emulator_port = inst_port
+                        return inst_port
+            except Exception:
+                pass
+
+        # 3. Check standard fallback ports
+        common_ports = [configured_port]
+        if inst_port:
+            common_ports.append(inst_port)
+        common_ports.extend([16416, 16384, 16448, 5555, 5554, 5556, 5557, 7555, 21503, 62001, 58526])
+
         seen = set()
         for port in common_ports:
-            if port in seen:
+            if not port or port in seen:
                 continue
             seen.add(port)
             try:
@@ -252,7 +327,7 @@ class ClientRemoteEngine:
             except Exception:
                 pass
 
-        # If not running, automatically launch installed emulator!
+        # 4. If not running, automatically launch installed emulator for the selected instance!
         launched_port = self.try_auto_launch_emulator()
         if launched_port is not None:
             return launched_port
@@ -260,7 +335,7 @@ class ClientRemoteEngine:
         print("=" * 68)
         print("[!] WARNING: No running Android emulator automatically detected!")
         print("[*] Please ensure BlueStacks, LDPlayer, or MuMu is RUNNING with ADB enabled.")
-        print("[*] Common emulator ports checked: 5555, 5554, 16384 (MuMu 12), 7555, 21503.")
+        print(f"[*] Target emulator: {getattr(self, 'preferred_emulator', 'Auto') or 'Auto'} | Instance: {pref_inst or 'Default'} | Port: {self.emulator_port}")
         print("=" * 68)
         return None
 
@@ -320,6 +395,7 @@ class ClientRemoteEngine:
                 # 1. Send auth frame with HWID and License Key
                 from remote_bridge.hwid import get_hwid
                 client_hwid = get_hwid()
+                self.client_hwid = client_hwid
                 auth_dict = {
                     "key": self.token,
                     "token": self.token,
@@ -358,13 +434,15 @@ class ClientRemoteEngine:
                 asyncio.create_task(self._ping_loop(ws))
                 print("[+] Synchronizing village profiles with server...")
 
-                # 2. Send Start Bot Control Command with config
+                # 2. Send Start Bot Control Command with config & verified HWID
                 merged_cfg = dict(config_dict or {})
                 if "bot_speed" not in merged_cfg:
                     merged_cfg["bot_speed"] = self.bot_speed
 
                 start_payload = json.dumps({
                     "action": "start",
+                    "hwid": client_hwid,
+                    "token": self.token,
                     "config": merged_cfg,
                 }).encode("utf-8")
                 await ws.send(pack_frame(MSG_BOT_CONTROL, start_payload))
@@ -487,17 +565,26 @@ class ClientRemoteEngine:
     def _handle_telemetry(self, payload: bytes) -> None:
         try:
             data = json.loads(payload.decode("utf-8"))
+            packet_hwid = str(data.get("hwid", "")).strip().upper()
+            expected_hwid = str(getattr(self, "client_hwid", "")).strip().upper()
+
+            # HWID Verification: ensure packet matches local hardware identity
+            if expected_hwid and packet_hwid and packet_hwid != expected_hwid:
+                print(f"[-] SECURITY ALERT: Server packet dropped — HWID mismatch [{packet_hwid}] != [{expected_hwid}]")
+                return
+
             call_info = data.get("server_call")
             if call_info and isinstance(call_info, dict):
-                cid = call_info.get("call_id")
+                cid = call_info.get("call_id") or call_info.get("id")
                 if cid is not None:
                     ClientRemoteEngine.TOTAL_SERVER_CALLS = cid
                 ClientRemoteEngine.LATEST_SERVER_CALL = call_info
 
             log_line = data.get("log")
             if log_line:
-                # Print directly to stdout so PySide6 MainWindow / TeeStream captures it
-                print(log_line)
+                # Filter out internal server RPC/telemetry lines from user UI log
+                if not any(marker in log_line for marker in ("SERVER->CLIENT CALL", "VERIFIED SERVER CALL", "VERIFIED CLIENT->SERVER")):
+                    print(log_line)
 
             # Update live stats if stats object was passed
             if self.stats:
@@ -559,7 +646,7 @@ class ClientRemoteEngine:
                         if len(pixels) == pw * ph * 4:
                             rgba = np.frombuffer(pixels, dtype=np.uint8).reshape((ph, pw, 4))
                             bgr = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)
-                            _, jpg_data = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 55])
+                            _, jpg_data = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
                             return jpg_data.tobytes()
         except Exception:
             pass
@@ -576,7 +663,7 @@ class ClientRemoteEngine:
                 if raw_png and len(raw_png) > 2000:
                     img = cv2.imdecode(np.frombuffer(raw_png, np.uint8), cv2.IMREAD_COLOR)
                     if img is not None:
-                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 55])
+                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 95])
                         return jpg_data.tobytes()
         except Exception:
             pass
@@ -594,7 +681,7 @@ class ClientRemoteEngine:
             if res.returncode == 0 and len(res.stdout) > 2000:
                 img = cv2.imdecode(np.frombuffer(res.stdout, np.uint8), cv2.IMREAD_COLOR)
                 if img is not None:
-                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 55])
+                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 95])
                     return jpg_data.tobytes()
         except Exception:
             pass
@@ -619,12 +706,46 @@ class ClientRemoteEngine:
                 break
             await asyncio.sleep(1.5)
 
+    def send_bot_control(self, action: str, config: dict | None = None) -> None:
+        """Send verified control action (start, pause, resume, stop) with HWID to the Cloud Server."""
+        if not self.ws or not self.loop or not self.loop.is_running():
+            return
+        client_hwid = getattr(self, "client_hwid", "")
+        if not client_hwid:
+            try:
+                from remote_bridge.hwid import get_hwid
+                client_hwid = get_hwid()
+            except Exception:
+                client_hwid = ""
+        payload = json.dumps({
+            "action": action,
+            "hwid": client_hwid,
+            "token": self.token,
+            "config": config or {},
+        }).encode("utf-8")
+        try:
+            asyncio.run_coroutine_threadsafe(self.ws.send(pack_frame(MSG_BOT_CONTROL, payload)), self.loop)
+        except Exception as e:
+            print(f"[!] Error sending bot control: {e}")
+
+    def start_background(self, config_dict: dict | None = None) -> None:
+        """Run the client async loop synchronously (ideal for background thread execution)."""
+        asyncio.run(self.run(config_dict))
+
     def stop(self) -> None:
         self.running = False
         if self.ws and self.loop:
             async def _send_stop():
                 try:
-                    stop_payload = json.dumps({"action": "stop"}).encode("utf-8")
+                    stop_hwid = getattr(self, "client_hwid", "")
+                    if not stop_hwid:
+                        from remote_bridge.hwid import get_hwid
+                        stop_hwid = get_hwid()
+                    stop_payload = json.dumps({
+                        "action": "stop",
+                        "hwid": stop_hwid,
+                        "token": self.token,
+                    }).encode("utf-8")
                     await self.ws.send(pack_frame(MSG_BOT_CONTROL, stop_payload))
                     await self.ws.close()
                 except Exception:

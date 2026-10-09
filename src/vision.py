@@ -1,23 +1,44 @@
 # -*- coding: utf-8 -*-
 """
-ClashBot AI - Client Vision Interface Stub
-Proprietary OpenCV template matching runs securely on the Cloud Engine Server.
+ClashBot AI - Client Stub: Vision Engine
+All OpenCV template matching, digit OCR reading, and computer vision
+execute exclusively on the ClashBot Cloud Server.
 """
 
-ARMY_DEBUG = False
-ATTACK_DEBUG = False
-LOOT_DEBUG = False
-VISION_DEBUG = False
+class VisionMeta(type):
+    def __getattr__(cls, name):
+        def _dummy(*args, **kwargs):
+            if name.startswith("is_"):
+                return False
+            if name.startswith("read_loot"):
+                return (0, 0, 0)
+            return None
+        return _dummy
 
-class Vision:
+class Vision(metaclass=VisionMeta):
     def __init__(self, *args, **kwargs):
         pass
 
     def __getattr__(self, name):
-        return lambda *args, **kwargs: None
+        def _dummy(*args, **kwargs):
+            if name.startswith("is_"):
+                return False
+            if name.startswith("read_loot"):
+                return (0, 0, 0)
+            return None
+        return _dummy
 
-def crop(*args, **kwargs):
-    return None
+    @classmethod
+    def read_loot(cls, *args, **kwargs):
+        return (0, 0, 0)
+
+    @classmethod
+    def match_template(cls, *args, **kwargs):
+        return None
+
+GLOBAL_VISION = Vision()
+
+__all__ = ["Vision", "GLOBAL_VISION"]
 
 def __getattr__(name):
-    return lambda *args, **kwargs: None
+    return getattr(GLOBAL_VISION, name, None)
