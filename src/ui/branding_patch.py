@@ -489,6 +489,9 @@ def _install_import_hook():
                 if name == "adbutils.errors":
                     return adbutils.errors
                 return adbutils
+            elif "pytesseract" in name:
+                import pytesseract
+                return pytesseract
             raise
         try:
             for mod_name in ("ui.main_window", "main_window"):
