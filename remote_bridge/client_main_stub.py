@@ -64,7 +64,19 @@ GLOBAL_VISION = None
 
 def main(stats):
     """Main worker entry point invoked by ui.bot_worker.BotWorker.run()."""
-    global _ACTIVE_ENGINE
+    global _ACTIVE_ENGINE, GLOBAL_STATS
+
+    if stats is None:
+        try:
+            from stats import Stats
+            stats = Stats()
+        except Exception:
+            pass
+
+    GLOBAL_STATS = stats
+    import sys
+    if "main" in sys.modules and sys.modules["main"]:
+        sys.modules["main"].GLOBAL_STATS = stats
 
     # 1. Load client configuration
     config_path = _project_root / "client_config.json"

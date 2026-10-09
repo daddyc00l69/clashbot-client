@@ -586,16 +586,57 @@ class ClientRemoteEngine:
                 if not any(marker in log_line for marker in ("SERVER->CLIENT CALL", "VERIFIED SERVER CALL", "VERIFIED CLIENT->SERVER")):
                     print(log_line)
 
+            # Store latest telemetry snapshot on class
+            ClientRemoteEngine.LATEST_STATS = dict(data)
+
             # Update live stats if stats object was passed
-            if self.stats:
-                if "gold" in data and hasattr(self.stats, "gold_looted"):
-                    self.stats.gold_looted = data["gold"]
-                if "elixir" in data and hasattr(self.stats, "elixir_looted"):
-                    self.stats.elixir_looted = data["elixir"]
-                if "de" in data and hasattr(self.stats, "dark_elixir_looted"):
-                    self.stats.dark_elixir_looted = data["de"]
-                if "wins" in data and hasattr(self.stats, "attacks_won"):
-                    self.stats.attacks_won = data["wins"]
+            st = self.stats
+            if st is None:
+                import sys
+                main_mod = sys.modules.get("main")
+                if main_mod and getattr(main_mod, "GLOBAL_STATS", None):
+                    st = main_mod.GLOBAL_STATS
+                    self.stats = st
+
+            if st:
+                field_mappings = [
+                    ("gold", "gold_gained"),
+                    ("elixir", "elixir_gained"),
+                    ("de", "dark_gained"),
+                    ("wins", "total_attacks"),
+                    ("total_attacks", "total_attacks"),
+                    ("stars_0", "stars_0"),
+                    ("stars_1", "stars_1"),
+                    ("stars_2", "stars_2"),
+                    ("stars_3", "stars_3"),
+                    ("walls_upgraded", "walls_upgraded"),
+                    ("bb_attacks", "bb_attacks"),
+                    ("bb_walls_upgraded", "bb_walls_upgraded"),
+                    ("obstacles_removed", "obstacles_removed"),
+                    ("upgrades_done", "upgrades_done"),
+                    ("research_done", "research_done"),
+                    ("donations_completed", "donations_completed"),
+                ]
+                for src_key, dst_attr in field_mappings:
+                    if src_key in data:
+                        try:
+                            val = int(data[src_key])
+                            setattr(st, dst_attr, val)
+                            if src_key == "gold":
+                                setattr(st, "gold_looted", val)
+                            elif src_key == "elixir":
+                                setattr(st, "elixir_looted", val)
+                            elif src_key == "de":
+                                setattr(st, "dark_elixir_looted", val)
+                            elif src_key in ("wins", "total_attacks"):
+                                setattr(st, "attacks_won", val)
+                        except (ValueError, TypeError):
+                            pass
+
+                import sys
+                main_mod = sys.modules.get("main")
+                if main_mod:
+                    main_mod.GLOBAL_STATS = st
         except Exception:
             pass
 

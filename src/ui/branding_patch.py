@@ -265,6 +265,13 @@ def _patch_main_window_class(cls):
                             top_badge.setStyleSheet(style_t)
                         if top_badge.isHidden():
                             top_badge.show()
+
+                    # Trigger live UI stats update so dashboard labels reflect cloud telemetry
+                    if hasattr(self, "refresh_statistics"):
+                        try:
+                            self.refresh_statistics()
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
