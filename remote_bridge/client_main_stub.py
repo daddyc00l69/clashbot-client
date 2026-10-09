@@ -68,8 +68,8 @@ def main(stats):
 
     # 1. Load client configuration
     config_path = _project_root / "client_config.json"
-    server_url = "ws://127.0.0.1:8765"
-    token = "CLASH-VIP-2026"
+    server_url = "https://clashbot.devtushar.uk"
+    token = "CLASH-PRO-FRIEND"
     emulator_port = 5555
 
     if config_path.exists():

@@ -88,9 +88,9 @@ def load_client_config() -> dict:
         except Exception:
             pass
     return {
-        "server_url": "ws://127.0.0.1:8765",
-        "token": "CLASH-VIP-2026",
-        "license_key": "CLASH-VIP-2026",
+        "server_url": "https://clashbot.devtushar.uk",
+        "token": "CLASH-PRO-FRIEND",
+        "license_key": "CLASH-PRO-FRIEND",
         "remember_key": True,
         "auto_login": False,
         "emulator_port": 5555,
@@ -160,6 +160,9 @@ class VerifyWorker(QThread):
         candidates: list[str] = []
         if self.server_url and self.server_url.strip():
             candidates.append(_format_ws_url(self.server_url))
+
+        # Always probe permanent Cloudflare domain
+        candidates.append(_format_ws_url("https://clashbot.devtushar.uk"))
 
         # Local loopback & LAN candidates
         candidates.append(_format_ws_url("ws://127.0.0.1:8765"))

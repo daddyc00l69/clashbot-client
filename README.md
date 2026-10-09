@@ -17,7 +17,7 @@ Edit `client_config.json` if your server URL changes:
 ```json
 {
   "server_url": "https://clashbot.devtushar.uk",
-  "key": "CB-VIP26-PRO77-MAX99-1",
+  "key": "CLASH-PRO-FRIEND",
   "emulator_port": 5555,
   "bot_speed": "balanced"
 }

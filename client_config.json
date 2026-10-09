@@ -1,11 +1,11 @@
 {
-  "server_url": "ws://127.0.0.1:8765/ws",
-  "key": "CB-VIP26-PRO77-MAX99-1",
-  "license_key": "CB-VIP26-PRO77-MAX99-1",
-  "token": "CB-VIP26-PRO77-MAX99-1",
+  "server_url": "https://clashbot.devtushar.uk",
+  "key": "CLASH-PRO-FRIEND",
+  "license_key": "CLASH-PRO-FRIEND",
+  "token": "CLASH-PRO-FRIEND",
   "remember_key": true,
   "auto_login": false,
   "emulator_port": 16416,
   "bot_speed": "balanced",
-  "hwid": "CB-BE51-FA2F-94AB"
+  "hwid": ""
 }
