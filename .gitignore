@@ -2,11 +2,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.log
-src/logs/
 *.exe
+*.dll
 *.db
 .env
 dist/
 build/
-src/Tools/tesseract/
-src/Tools/uiautomator2_data/
+src/
+Tools/
