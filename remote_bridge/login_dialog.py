@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
-"""ClashBot AI - Client Authentication & Launcher Window.
+"""ClashBot AI - Client Activation & Sign-In Dialog.
 
-Modern AAA gaming-style PySide6 Launch Dialog with hardware identification (HWID).
-Features:
-- Dark glassmorphism obsidian theme with glowing cyan & electric accents.
-- Frameless window with custom draggable titlebar.
-- Compact hardware fingerprint (HWID) badge with instant clipboard copy.
-- Streamlined License Key activation with Enter-key submission.
-- Collapsible advanced network / server settings.
-- Seamless auto-launch option and live status telemetry.
+Apple-inspired minimalist, clean interface for license authentication.
+- Pure dark mode aesthetic (macOS/iOS inspired palette).
+- Clean squircle branding with San Francisco-style typography.
+- Streamlined single-field input with Enter-key submission.
+- HWID hardware validation executed silently in the background (hidden from UI).
+- Zero clutter: no neon effects, no emojis, no advanced network settings shown.
 """
 
 from __future__ import annotations
@@ -18,8 +16,8 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, QThread, QTimer, Signal, Slot
-from PySide6.QtGui import QColor, QFont, QIcon, QPixmap
+from PySide6.QtCore import QPoint, QRectF, Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -38,7 +36,7 @@ from remote_bridge.protocol import MSG_AUTH, MSG_AUTH_FAIL, MSG_AUTH_OK, pack_fr
 
 
 def resolve_icon_pixmap() -> QPixmap | None:
-    """Locate the ClashBot AI brand icon across common project structures."""
+    """Locate and return the app brand icon formatted with smooth rounded corners."""
     curr = Path(__file__).resolve().parent
     candidates = [
         curr.parent / "src" / "assets" / "icon.png",
@@ -51,7 +49,18 @@ def resolve_icon_pixmap() -> QPixmap | None:
         if c.exists():
             pix = QPixmap(str(c))
             if not pix.isNull():
-                return pix.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                size = 60
+                scaled = pix.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                rounded = QPixmap(size, size)
+                rounded.fill(Qt.transparent)
+                painter = QPainter(rounded)
+                painter.setRenderHint(QPainter.Antialiasing)
+                path = QPainterPath()
+                path.addRoundedRect(QRectF(0, 0, size, size), 14, 14)
+                painter.setClipPath(path)
+                painter.drawPixmap(0, 0, scaled)
+                painter.end()
+                return rounded
     return None
 
 
@@ -165,7 +174,7 @@ class VerifyWorker(QThread):
             except Exception as e:
                 err = str(e)
                 if "10061" in err or "refused" in err.lower():
-                    return False, "Connection refused: Server is offline or port is closed.", ""
+                    return False, "Unable to connect. Server is offline.", ""
                 return False, f"Connection error: {err}", ""
 
         try:
@@ -179,7 +188,7 @@ class VerifyWorker(QThread):
 
 
 class ClashBotLoginDialog(QDialog):
-    """Modern AAA Gaming Launcher Dialog for ClashBot AI."""
+    """Apple-inspired minimalist Sign-In Dialog for ClashBot AI."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -188,8 +197,8 @@ class ClashBotLoginDialog(QDialog):
         self.worker: VerifyWorker | None = None
         self.drag_position = QPoint()
 
-        self.setWindowTitle("ClashBot AI — Client Launcher")
-        self.setFixedSize(460, 560)
+        self.setWindowTitle("ClashBot AI")
+        self.setFixedSize(380, 460)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
 
@@ -219,401 +228,223 @@ class ClashBotLoginDialog(QDialog):
 
     def _init_ui(self) -> None:
         outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(8, 8, 8, 8)
+        outer_layout.setContentsMargins(10, 10, 10, 10)
 
-        # Main Obsidian Card Container
+        # Main macOS-styled Card Container
         self.card = QFrame(self)
-        self.card.setObjectName("mainCard")
+        self.card.setObjectName("appleCard")
         self.card.setStyleSheet("""
-            QFrame#mainCard {
-                background-color: #0A0D14;
-                border: 1px solid #1E293B;
-                border-radius: 14px;
+            QFrame#appleCard {
+                background-color: #1C1C1E;
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 18px;
             }
         """)
 
         card_layout = QVBoxLayout(self.card)
-        card_layout.setContentsMargins(22, 16, 22, 20)
-        card_layout.setSpacing(12)
+        card_layout.setContentsMargins(28, 20, 28, 24)
+        card_layout.setSpacing(0)
 
-        # 1. Custom Draggable Title Bar
-        titlebar = QHBoxLayout()
-        titlebar.setContentsMargins(0, 0, 0, 0)
-
-        badge_dot = QLabel("●")
-        badge_dot.setStyleSheet("color: #38BDF8; font-size: 10px; margin-right: 2px;")
-        titlebar.addWidget(badge_dot)
-
-        top_title = QLabel("CLASHBOT AI")
-        top_title.setStyleSheet("font-family: 'Segoe UI', system-ui; font-size: 11px; font-weight: 800; color: #94A3B8; letter-spacing: 1px;")
-        titlebar.addWidget(top_title)
-
-        ver_badge = QLabel("PRO v2.0")
-        ver_badge.setStyleSheet("background-color: #161F30; color: #38BDF8; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid #1E293B;")
-        titlebar.addWidget(ver_badge)
-
-        titlebar.addStretch()
+        # 1. Minimal Header / Close Control
+        top_bar = QHBoxLayout()
+        top_bar.setContentsMargins(0, 0, 0, 0)
+        top_bar.addStretch()
 
         close_btn = QPushButton("✕")
-        close_btn.setFixedSize(24, 24)
+        close_btn.setFixedSize(26, 26)
         close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.setStyleSheet("""
             QPushButton {
-                background: transparent;
+                background-color: rgba(255, 255, 255, 0.06);
                 border: none;
-                color: #64748B;
-                font-size: 13px;
-                font-weight: bold;
-                border-radius: 4px;
+                border-radius: 13px;
+                color: #8E8E93;
+                font-family: -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+                font-size: 11px;
+                font-weight: 600;
             }
             QPushButton:hover {
-                background-color: #EF4444;
+                background-color: rgba(255, 255, 255, 0.15);
                 color: #FFFFFF;
             }
         """)
         close_btn.clicked.connect(self.reject)
-        titlebar.addWidget(close_btn)
-        card_layout.addLayout(titlebar)
+        top_bar.addWidget(close_btn)
+        card_layout.addLayout(top_bar)
 
-        # 2. Hero Brand Header
-        hero = QVBoxLayout()
-        hero.setSpacing(4)
-        hero.setAlignment(Qt.AlignCenter)
+        card_layout.addSpacing(6)
+
+        # 2. Hero Icon & Minimalist Typography
+        hero_layout = QVBoxLayout()
+        hero_layout.setSpacing(8)
+        hero_layout.setAlignment(Qt.AlignCenter)
 
         icon_lbl = QLabel()
         pix = resolve_icon_pixmap()
         if pix:
             icon_lbl.setPixmap(pix)
         else:
-            icon_lbl.setText("⚔️")
-            icon_lbl.setStyleSheet("font-size: 32px;")
-        icon_lbl.setAlignment(Qt.AlignCenter)
-        hero.addWidget(icon_lbl)
-
-        brand_lbl = QLabel("CLASHBOT AI")
-        brand_lbl.setAlignment(Qt.AlignCenter)
-        brand_lbl.setStyleSheet("""
-            font-family: 'Segoe UI', system-ui;
-            font-size: 18px;
-            font-weight: 800;
-            color: #F8FAFC;
-            letter-spacing: 1.5px;
-            margin-top: 2px;
-        """)
-        hero.addWidget(brand_lbl)
-
-        sub_lbl = QLabel("Autonomous Tactical Intelligence & Cloud Engine")
-        sub_lbl.setAlignment(Qt.AlignCenter)
-        sub_lbl.setStyleSheet("font-size: 11px; color: #64748B; font-weight: 500;")
-        hero.addWidget(sub_lbl)
-
-        card_layout.addLayout(hero)
-
-        # 3. Compact Hardware ID (HWID) Chip
-        hwid_chip = QFrame()
-        hwid_chip.setObjectName("hwidChip")
-        hwid_chip.setStyleSheet("""
-            QFrame#hwidChip {
-                background-color: #101522;
-                border: 1px solid #1E293B;
-                border-radius: 8px;
-            }
-        """)
-        hwid_layout = QHBoxLayout(hwid_chip)
-        hwid_layout.setContentsMargins(12, 6, 12, 6)
-        hwid_layout.setSpacing(8)
-
-        hwid_tag = QLabel("🔒 HWID:")
-        hwid_tag.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748B; letter-spacing: 0.5px; border: none; background: transparent;")
-        hwid_layout.addWidget(hwid_tag)
-
-        self.hwid_val = QLabel(self.hwid)
-        self.hwid_val.setStyleSheet("font-family: 'Consolas', monospace; font-size: 11px; font-weight: bold; color: #38BDF8; border: none; background: transparent;")
-        hwid_layout.addWidget(self.hwid_val)
-
-        hwid_layout.addStretch()
-
-        self.copy_btn = QPushButton("📋 Copy")
-        self.copy_btn.setCursor(Qt.PointingHandCursor)
-        self.copy_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1A2234;
-                border: 1px solid #28354D;
-                border-radius: 4px;
-                color: #94A3B8;
-                font-size: 10px;
-                font-weight: 600;
-                padding: 3px 8px;
-            }
-            QPushButton:hover {
-                background-color: #243048;
+            icon_lbl.setText("C")
+            icon_lbl.setStyleSheet("""
+                background-color: #2C2C2E;
                 color: #FFFFFF;
-            }
+                font-size: 24px;
+                font-weight: bold;
+                border-radius: 14px;
+                min-width: 60px;
+                min-height: 60px;
+            """)
+        icon_lbl.setAlignment(Qt.AlignCenter)
+        hero_layout.addWidget(icon_lbl)
+
+        card_layout.addSpacing(6)
+
+        title_lbl = QLabel("ClashBot AI")
+        title_lbl.setAlignment(Qt.AlignCenter)
+        title_lbl.setStyleSheet("""
+            font-family: -apple-system, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: #FFFFFF;
+            letter-spacing: -0.3px;
         """)
-        self.copy_btn.clicked.connect(self._copy_hwid)
-        hwid_layout.addWidget(self.copy_btn)
+        hero_layout.addWidget(title_lbl)
 
-        card_layout.addWidget(hwid_chip)
-
-        # 4. Form Card (Key Input + Options)
-        form_card = QFrame()
-        form_card.setObjectName("formCard")
-        form_card.setStyleSheet("""
-            QFrame#formCard {
-                background-color: #101522;
-                border: 1px solid #1E293B;
-                border-radius: 10px;
-            }
+        sub_lbl = QLabel("Enter your license key to activate")
+        sub_lbl.setAlignment(Qt.AlignCenter)
+        sub_lbl.setStyleSheet("""
+            font-family: -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+            font-size: 13px;
+            color: #8E8E93;
+            font-weight: 400;
         """)
-        form_layout = QVBoxLayout(form_card)
-        form_layout.setContentsMargins(14, 12, 14, 12)
-        form_layout.setSpacing(10)
+        hero_layout.addWidget(sub_lbl)
 
-        key_header = QHBoxLayout()
-        key_lbl = QLabel("🔑 LICENSE KEY")
-        key_lbl.setStyleSheet("font-size: 10px; font-weight: 700; color: #94A3B8; letter-spacing: 0.8px; border: none; background: transparent;")
-        key_header.addWidget(key_lbl)
-        key_header.addStretch()
-        form_layout.addLayout(key_header)
+        card_layout.addLayout(hero_layout)
+
+        card_layout.addSpacing(24)
+
+        # 3. Clean Input Field
+        input_layout = QVBoxLayout()
+        input_layout.setSpacing(10)
 
         saved_key = self.cfg.get("license_key") or self.cfg.get("token") or "CLASH-VIP-2026"
         self.key_edit = QLineEdit(saved_key)
-        self.key_edit.setPlaceholderText("Enter license key (e.g. CLASH-VIP-2026)")
+        self.key_edit.setPlaceholderText("License Key")
         self.key_edit.setStyleSheet("""
             QLineEdit {
-                background-color: #07090E;
-                border: 1px solid #28354D;
-                border-radius: 6px;
-                color: #F8FAFC;
-                font-family: 'Consolas', monospace;
-                font-size: 13px;
-                font-weight: bold;
-                padding: 8px 12px;
-                letter-spacing: 0.5px;
+                background-color: #2C2C2E;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 10px;
+                color: #FFFFFF;
+                font-family: -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+                font-size: 14px;
+                padding: 12px 14px;
             }
             QLineEdit:focus {
-                border: 1.5px solid #38BDF8;
-                background-color: #0B111D;
+                border: 1.5px solid #007AFF;
+                background-color: #323235;
             }
         """)
-        form_layout.addWidget(self.key_edit)
+        input_layout.addWidget(self.key_edit)
 
-        # Checkboxes row
+        # Options: Clean Apple style checkbox
         opts_layout = QHBoxLayout()
-        opts_layout.setSpacing(14)
+        opts_layout.setContentsMargins(2, 0, 0, 0)
 
         self.rem_cb = QCheckBox("Remember key")
         self.rem_cb.setChecked(self.cfg.get("remember_key", True))
         self.rem_cb.setStyleSheet("""
             QCheckBox {
-                color: #94A3B8;
-                font-size: 11px;
-                spacing: 6px;
+                color: #8E8E93;
+                font-family: -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+                font-size: 12px;
+                spacing: 8px;
             }
             QCheckBox::indicator {
-                width: 14px;
-                height: 14px;
-                border-radius: 3px;
-                border: 1px solid #334155;
-                background: #07090E;
+                width: 15px;
+                height: 15px;
+                border-radius: 4px;
+                border: 1px solid #48484A;
+                background-color: #2C2C2E;
             }
             QCheckBox::indicator:checked {
-                background: #38BDF8;
-                border: 1px solid #38BDF8;
+                background-color: #007AFF;
+                border: 1px solid #007AFF;
             }
         """)
         opts_layout.addWidget(self.rem_cb)
-
-        self.auto_cb = QCheckBox("Auto-launch on startup")
-        self.auto_cb.setChecked(self.cfg.get("auto_login", False))
-        self.auto_cb.setStyleSheet(self.rem_cb.styleSheet())
-        opts_layout.addWidget(self.auto_cb)
-
         opts_layout.addStretch()
-        form_layout.addLayout(opts_layout)
+        input_layout.addLayout(opts_layout)
 
-        card_layout.addWidget(form_card)
-
-        # 5. Collapsible Advanced Connection Settings
-        self.adv_btn = QPushButton("⚙️ Advanced Network Settings ▾")
-        self.adv_btn.setCursor(Qt.PointingHandCursor)
-        self.adv_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                color: #64748B;
-                font-size: 10px;
-                font-weight: 600;
-                text-align: left;
-                padding: 2px 4px;
-            }
-            QPushButton:hover {
-                color: #94A3B8;
-            }
-        """)
-        self.adv_btn.clicked.connect(self._toggle_advanced)
-        card_layout.addWidget(self.adv_btn)
-
-        self.adv_frame = QFrame()
-        self.adv_frame.setObjectName("advFrame")
-        self.adv_frame.setVisible(False)
-        self.adv_frame.setStyleSheet("""
-            QFrame#advFrame {
-                background-color: #0E131F;
-                border: 1px solid #1E293B;
-                border-radius: 8px;
-            }
-        """)
-        adv_layout = QVBoxLayout(self.adv_frame)
-        adv_layout.setContentsMargins(12, 10, 12, 10)
-        adv_layout.setSpacing(6)
-
-        url_lbl = QLabel("Cloud Server Endpoint:")
-        url_lbl.setStyleSheet("font-size: 10px; color: #94A3B8; font-weight: 600; border: none; background: transparent;")
-        adv_layout.addWidget(url_lbl)
-
-        saved_url = self.cfg.get("server_url") or "ws://110.227.184.49:8765"
-        self.url_edit = QLineEdit(saved_url)
-        self.url_edit.setPlaceholderText("ws://110.227.184.49:8765")
-        self.url_edit.setStyleSheet("""
-            QLineEdit {
-                background-color: #07090E;
-                border: 1px solid #28354D;
-                border-radius: 5px;
-                color: #CBD5E1;
-                font-size: 11px;
-                padding: 5px 8px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #38BDF8;
-            }
-        """)
-        adv_layout.addWidget(self.url_edit)
-        card_layout.addWidget(self.adv_frame)
+        card_layout.addLayout(input_layout)
 
         card_layout.addStretch()
 
-        # 6. Status Feedback Banner
-        self.status_banner = QLabel("Ready • Enter your license key to activate.")
-        self.status_banner.setAlignment(Qt.AlignCenter)
-        self.status_banner.setWordWrap(True)
-        self.status_banner.setFixedHeight(34)
-        self.status_banner.setStyleSheet("""
-            background-color: #0E131F;
-            border: 1px solid #1A2333;
-            border-radius: 6px;
-            color: #64748B;
-            font-size: 11px;
-            font-weight: 500;
-            padding: 6px 10px;
+        # 4. Status Notice
+        self.status_lbl = QLabel("")
+        self.status_lbl.setAlignment(Qt.AlignCenter)
+        self.status_lbl.setWordWrap(True)
+        self.status_lbl.setStyleSheet("""
+            font-family: -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+            font-size: 12px;
+            color: #8E8E93;
+            min-height: 18px;
         """)
-        card_layout.addWidget(self.status_banner)
+        card_layout.addWidget(self.status_lbl)
 
-        # 7. Hero Action Button
-        self.launch_btn = QPushButton("⚡ LAUNCH CLASHBOT")
-        self.launch_btn.setCursor(Qt.PointingHandCursor)
-        self.launch_btn.setFixedHeight(42)
-        self.launch_btn.setStyleSheet("""
+        card_layout.addSpacing(10)
+
+        # 5. Clean Apple Blue Button
+        self.continue_btn = QPushButton("Continue")
+        self.continue_btn.setCursor(Qt.PointingHandCursor)
+        self.continue_btn.setFixedHeight(42)
+        self.continue_btn.setStyleSheet("""
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:0.5 #2563EB, stop:1 #4F46E5);
+                background-color: #007AFF;
                 border: none;
-                border-radius: 8px;
+                border-radius: 10px;
                 color: #FFFFFF;
-                font-family: 'Segoe UI', system-ui;
-                font-size: 13px;
-                font-weight: 800;
-                letter-spacing: 0.8px;
+                font-family: -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+                font-size: 14px;
+                font-weight: 600;
             }
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0369A1, stop:0.5 #1D4ED8, stop:1 #4338CA);
+                background-color: #0069D9;
             }
             QPushButton:pressed {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #075985, stop:0.5 #1E40AF, stop:1 #3730A3);
+                background-color: #0056B3;
             }
             QPushButton:disabled {
-                background: #1E293B;
-                color: #64748B;
+                background-color: #3A3A3C;
+                color: #636366;
             }
         """)
-        self.launch_btn.clicked.connect(self._start_verification)
-        card_layout.addWidget(self.launch_btn)
+        self.continue_btn.clicked.connect(self._start_verification)
+        card_layout.addWidget(self.continue_btn)
 
         outer_layout.addWidget(self.card)
 
-    def _copy_hwid(self) -> None:
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self.hwid)
-        self.copy_btn.setText("✓ Copied")
-        self.copy_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #064E3B;
-                border: 1px solid #059669;
-                border-radius: 4px;
-                color: #34D399;
-                font-size: 10px;
-                font-weight: 700;
-                padding: 3px 8px;
-            }
-        """)
-        QTimer.singleShot(1600, self._reset_copy_btn)
-
-    def _reset_copy_btn(self) -> None:
-        self.copy_btn.setText("📋 Copy")
-        self.copy_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1A2234;
-                border: 1px solid #28354D;
-                border-radius: 4px;
-                color: #94A3B8;
-                font-size: 10px;
-                font-weight: 600;
-                padding: 3px 8px;
-            }
-            QPushButton:hover {
-                background-color: #243048;
-                color: #FFFFFF;
-            }
-        """)
-
-    def _toggle_advanced(self) -> None:
-        visible = not self.adv_frame.isVisible()
-        self.adv_frame.setVisible(visible)
-        if visible:
-            self.adv_btn.setText("⚙️ Advanced Network Settings ▴")
-            self.setFixedSize(460, 620)
-        else:
-            self.adv_btn.setText("⚙️ Advanced Network Settings ▾")
-            self.setFixedSize(460, 560)
-
-    def _set_status(self, text: str, color_hex: str) -> None:
-        self.status_banner.setText(text)
-        r = int(color_hex[1:3], 16)
-        g = int(color_hex[3:5], 16)
-        b = int(color_hex[5:7], 16)
-        self.status_banner.setStyleSheet(f"""
-            background-color: rgba({r}, {g}, {b}, 0.12);
-            border: 1px solid {color_hex};
-            border-radius: 6px;
-            color: {color_hex};
-            font-size: 11px;
-            font-weight: 600;
-            padding: 6px 10px;
+    def _set_status(self, text: str, color: str = "#8E8E93") -> None:
+        self.status_lbl.setText(text)
+        self.status_lbl.setStyleSheet(f"""
+            font-family: -apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+            font-size: 12px;
+            color: {color};
+            min-height: 18px;
         """)
 
     def _start_verification(self) -> None:
         key = self.key_edit.text().strip()
-        url = self.url_edit.text().strip()
+        url = self.cfg.get("server_url", "ws://110.227.184.49:8765")
 
         if not key:
-            self._set_status("Please enter a valid license key.", "#EF4444")
-            return
-        if not url:
-            self._set_status("Please enter a valid server URL.", "#EF4444")
+            self._set_status("Please enter a license key.", "#FF453A")
             return
 
-        self.launch_btn.setEnabled(False)
-        self.launch_btn.setText("⏳ VERIFYING LICENSE...")
-        self._set_status("Connecting to Cloud Engine & validating HWID...", "#38BDF8")
+        self.continue_btn.setEnabled(False)
+        self.continue_btn.setText("Verifying...")
+        self._set_status("Connecting...", "#8E8E93")
 
         self.worker = VerifyWorker(server_url=url, key=key, hwid=self.hwid)
         self.worker.finished.connect(self._on_verification_finished)
@@ -621,31 +452,25 @@ class ClashBotLoginDialog(QDialog):
 
     @Slot(bool, str, str)
     def _on_verification_finished(self, is_valid: bool, message: str, user: str) -> None:
-        self.launch_btn.setEnabled(True)
-        self.launch_btn.setText("⚡ LAUNCH CLASHBOT")
+        self.continue_btn.setEnabled(True)
+        self.continue_btn.setText("Continue")
 
         if is_valid:
-            welcome = f"Welcome, {user}!" if user else "Activation Successful!"
-            self._set_status(f"🟢 {message} ({welcome})", "#10B981")
+            welcome = f"Welcome, {user}" if user else "Activated"
+            self._set_status(welcome, "#30D158")
 
-            # Save credentials & options
             key = self.key_edit.text().strip()
-            url = self.url_edit.text().strip()
             rem = self.rem_cb.isChecked()
-            auto = self.auto_cb.isChecked()
 
-            self.cfg["server_url"] = url
             self.cfg["license_key"] = key
             self.cfg["token"] = key
             self.cfg["remember_key"] = rem
-            self.cfg["auto_login"] = auto
             self.cfg["hwid"] = self.hwid
             save_client_config(self.cfg)
 
-            # Brief pause so user sees green verification confirmation
-            QTimer.singleShot(500, self.accept)
+            QTimer.singleShot(400, self.accept)
         else:
-            self._set_status(f"🔴 {message}", "#EF4444")
+            self._set_status(message, "#FF453A")
 
 
 def check_or_show_login_dialog(parent: QWidget | None = None) -> bool:
