@@ -17,6 +17,51 @@ import builtins
 _BASE_PATCHED = False
 _HOOK_INSTALLED = False
 _PATCHED_CLASSES = set()
+_IDLE_PING_STARTED = False
+_IDLE_SERVER_ONLINE = True
+_IDLE_SERVER_PING_MS = None
+
+def _ensure_idle_ping_thread():
+    global _IDLE_PING_STARTED
+    if _IDLE_PING_STARTED:
+        return
+    _IDLE_PING_STARTED = True
+    import threading
+    import urllib.request
+    import time
+    from pathlib import Path
+    import json
+
+    def _worker():
+        global _IDLE_SERVER_ONLINE, _IDLE_SERVER_PING_MS
+        while True:
+            try:
+                server_url = "https://clashbot.devtushar.uk"
+                for p in [Path("client_config.json"), Path("../client_config.json"), Path("src/client_config.json")]:
+                    if p.exists():
+                        try:
+                            with open(p, "r", encoding="utf-8") as f:
+                                server_url = json.load(f).get("server_url", server_url)
+                        except Exception:
+                            pass
+                        break
+                t0 = time.time()
+                req = urllib.request.Request(
+                    server_url,
+                    headers={"User-Agent": "Mozilla/5.0", "Bypass-Tunnel-Reminder": "true"}
+                )
+                with urllib.request.urlopen(req, timeout=3.5) as resp:
+                    if resp.getcode() in (200, 101):
+                        _IDLE_SERVER_PING_MS = int((time.time() - t0) * 1000)
+                        _IDLE_SERVER_ONLINE = True
+                    else:
+                        _IDLE_SERVER_ONLINE = False
+            except Exception:
+                _IDLE_SERVER_ONLINE = False
+            time.sleep(4.0)
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
 
 def clean_branding_text(text):
     """Clean any remaining AutoClash legacy strings to ClashBot AI."""
@@ -152,30 +197,58 @@ def _patch_main_window_class(cls):
                         top_call_str = f" | ⚡ #{total_calls}"
 
                     if ms is None or ms <= 0:
-                        b_text = f"⚫ Cloud: Connecting... | HWID: {hwid_code} | Host: {server_host}"
-                        t_text = f"⚫ {hwid_code}"
-                        style_b = (
-                            "background: rgba(100, 116, 139, 0.15); "
-                            "border: 1px solid rgba(100, 116, 139, 0.35); "
-                            "border-radius: 6px; "
-                            "color: #94a3b8; "
-                            "font-family: 'Segoe UI', system-ui, sans-serif; "
-                            "font-size: 11px; "
-                            "font-weight: 600; "
-                            "padding: 4px 12px; "
-                            "margin-right: 8px;"
-                        )
-                        style_t = (
-                            "background: rgba(100, 116, 139, 0.15); "
-                            "border: 1px solid rgba(100, 116, 139, 0.35); "
-                            "border-radius: 4px; "
-                            "color: #94a3b8; "
-                            "font-family: 'Segoe UI', system-ui, sans-serif; "
-                            "font-size: 11px; "
-                            "font-weight: 600; "
-                            "padding: 2px 8px; "
-                            "margin-right: 10px;"
-                        )
+                        _ensure_idle_ping_thread()
+                        if _IDLE_SERVER_ONLINE:
+                            p_str = f"{_IDLE_SERVER_PING_MS}ms" if _IDLE_SERVER_PING_MS else "Ready"
+                            b_text = f"🟢 Server: Online ({p_str}) | HWID: {hwid_code} | Host: {server_host} [Ready]"
+                            t_text = f"🟢 {p_str} | {hwid_code}"
+                            style_b = (
+                                "background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(16, 185, 129, 0.18), stop:1 rgba(6, 182, 212, 0.18)); "
+                                "border: 1px solid rgba(16, 185, 129, 0.5); "
+                                "border-radius: 6px; "
+                                "color: #10b981; "
+                                "font-family: 'Segoe UI', system-ui, sans-serif; "
+                                "font-size: 11px; "
+                                "font-weight: 600; "
+                                "padding: 4px 12px; "
+                                "margin-right: 8px;"
+                            )
+                            style_t = (
+                                "background: rgba(16, 185, 129, 0.18); "
+                                "border: 1px solid rgba(16, 185, 129, 0.45); "
+                                "border-radius: 4px; "
+                                "color: #10b981; "
+                                "font-family: 'Segoe UI', system-ui, sans-serif; "
+                                "font-size: 11px; "
+                                "font-weight: 600; "
+                                "padding: 2px 8px; "
+                                "margin-right: 10px;"
+                            )
+                        else:
+                            b_text = f"🔴 Server: Offline | HWID: {hwid_code} | Host: {server_host}"
+                            t_text = f"🔴 {hwid_code}"
+                            style_b = (
+                                "background: rgba(239, 68, 68, 0.18); "
+                                "border: 1px solid rgba(239, 68, 68, 0.5); "
+                                "border-radius: 6px; "
+                                "color: #ef4444; "
+                                "font-family: 'Segoe UI', system-ui, sans-serif; "
+                                "font-size: 11px; "
+                                "font-weight: 600; "
+                                "padding: 4px 12px; "
+                                "margin-right: 8px;"
+                            )
+                            style_t = (
+                                "background: rgba(239, 68, 68, 0.18); "
+                                "border: 1px solid rgba(239, 68, 68, 0.45); "
+                                "border-radius: 4px; "
+                                "color: #ef4444; "
+                                "font-family: 'Segoe UI', system-ui, sans-serif; "
+                                "font-size: 11px; "
+                                "font-weight: 600; "
+                                "padding: 2px 8px; "
+                                "margin-right: 10px;"
+                            )
                     elif ms < 85:
                         b_text = f"🟢 Ping: {ms}ms | HWID: {hwid_code} | Cloud: {server_host}"
                         t_text = f"🟢 {ms}ms | {hwid_code}"
@@ -436,8 +509,13 @@ def _patch_mini_window_class(cls):
                             call_str = f" | ⚡ #{total_calls}"
 
                         if ms is None or ms <= 0:
-                            m_badge.setText("⚫ Offline")
-                            m_badge.setStyleSheet("background: rgba(100, 116, 139, 0.15); border: 1px solid rgba(100, 116, 139, 0.35); border-radius: 4px; color: #94a3b8; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
+                            if _IDLE_SERVER_ONLINE:
+                                p_str = f"{_IDLE_SERVER_PING_MS}ms" if _IDLE_SERVER_PING_MS else "Ready"
+                                m_badge.setText(f"🟢 {p_str}")
+                                m_badge.setStyleSheet("background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 4px; color: #10b981; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
+                            else:
+                                m_badge.setText("🔴 Offline")
+                                m_badge.setStyleSheet("background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 4px; color: #ef4444; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
                         elif ms < 85:
                             m_badge.setText(f"🟢 {ms}ms")
                             m_badge.setStyleSheet("background: rgba(16, 185, 129, 0.18); border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 4px; color: #10b981; font-size: 10px; font-weight: 600; padding: 2px 6px; margin-right: 6px;")
