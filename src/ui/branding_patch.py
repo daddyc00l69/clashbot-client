@@ -481,7 +481,15 @@ def _install_import_hook():
 
     _orig_import = builtins.__import__
     def _branding_import(name, globals=None, locals=None, fromlist=(), level=0):
-        mod = _orig_import(name, globals, locals, fromlist, level)
+        try:
+            mod = _orig_import(name, globals, locals, fromlist, level)
+        except ModuleNotFoundError:
+            if "adbutils" in name:
+                import adbutils
+                if name == "adbutils.errors":
+                    return adbutils.errors
+                return adbutils
+            raise
         try:
             for mod_name in ("ui.main_window", "main_window"):
                 if mod_name in sys.modules:
