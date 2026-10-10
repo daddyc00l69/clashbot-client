@@ -731,7 +731,7 @@ class ClientRemoteEngine:
                         if len(pixels) == pw * ph * 4:
                             rgba = np.frombuffer(pixels, dtype=np.uint8).reshape((ph, pw, 4))
                             bgr = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)
-                            _, jpg_data = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                            _, jpg_data = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 78])
                             return jpg_data.tobytes()
         except Exception:
             pass
@@ -748,7 +748,7 @@ class ClientRemoteEngine:
                 if raw_png and len(raw_png) > 2000:
                     img = cv2.imdecode(np.frombuffer(raw_png, np.uint8), cv2.IMREAD_COLOR)
                     if img is not None:
-                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 78])
                         return jpg_data.tobytes()
         except Exception:
             pass
@@ -766,7 +766,7 @@ class ClientRemoteEngine:
             if res.returncode == 0 and len(res.stdout) > 2000:
                 img = cv2.imdecode(np.frombuffer(res.stdout, np.uint8), cv2.IMREAD_COLOR)
                 if img is not None:
-                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 78])
                     return jpg_data.tobytes()
         except Exception:
             pass
