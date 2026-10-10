@@ -81,15 +81,18 @@ class ClientRemoteEngine:
         self.loop = None
 
         self.bot_speed = "balanced"
+        self.screenshot_quality = 85
         try:
             cfg_file = Path(__file__).resolve().parent.parent / "client_config.json"
             if cfg_file.exists():
                 with open(cfg_file, "r", encoding="utf-8") as f:
                     cdata = json.load(f)
                     self.bot_speed = cdata.get("bot_speed", "balanced")
+                    self.screenshot_quality = int(cdata.get("screenshot_quality", 85))
         except Exception:
             pass
         ClientRemoteEngine.BOT_SPEED = self.bot_speed
+        ClientRemoteEngine.SCREENSHOT_QUALITY = self.screenshot_quality
 
     def _find_emulator_executables(self) -> list[tuple[str, str]]:
         """Find installed emulator executables on Windows."""
@@ -707,6 +710,12 @@ class ClientRemoteEngine:
             import shutil
             adb_bin = shutil.which("adb") or "adb"
 
+        q = getattr(self, "screenshot_quality", 85)
+        try:
+            q = max(50, min(100, int(q)))
+        except Exception:
+            q = 85
+
         # 1. Fastest: Raw framebuffer screencap via adb exec-out (bypasses Android CPU PNG compression: ~25ms)
         try:
             import struct
@@ -731,7 +740,7 @@ class ClientRemoteEngine:
                         if len(pixels) == pw * ph * 4:
                             rgba = np.frombuffer(pixels, dtype=np.uint8).reshape((ph, pw, 4))
                             bgr = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)
-                            _, jpg_data = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 78])
+                            _, jpg_data = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, q])
                             return jpg_data.tobytes()
         except Exception:
             pass
@@ -748,7 +757,7 @@ class ClientRemoteEngine:
                 if raw_png and len(raw_png) > 2000:
                     img = cv2.imdecode(np.frombuffer(raw_png, np.uint8), cv2.IMREAD_COLOR)
                     if img is not None:
-                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 78])
+                        _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, q])
                         return jpg_data.tobytes()
         except Exception:
             pass
@@ -766,7 +775,7 @@ class ClientRemoteEngine:
             if res.returncode == 0 and len(res.stdout) > 2000:
                 img = cv2.imdecode(np.frombuffer(res.stdout, np.uint8), cv2.IMREAD_COLOR)
                 if img is not None:
-                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 78])
+                    _, jpg_data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, q])
                     return jpg_data.tobytes()
         except Exception:
             pass

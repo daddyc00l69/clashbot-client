@@ -7,5 +7,6 @@
   "auto_login": false,
   "emulator_port": 5555,
   "bot_speed": "balanced",
+  "screenshot_quality": 85,
   "hwid": ""
 }
