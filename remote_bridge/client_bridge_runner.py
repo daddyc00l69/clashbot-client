@@ -363,204 +363,231 @@ class ClientRemoteEngine:
         print("=" * 68)
         print(f"[+] Cloud Server  : {ws_url}")
         print(f"[+] Local Emulator: 127.0.0.1:{self.emulator_port}")
-        print("[*] Initiating secure WebSocket bridge connection...")
 
-        try:
-            connect_kwargs = {
-                "max_size": 32 * 1024 * 1024,
-                "ping_interval": 20,
-                "ping_timeout": 20,
-            }
-            import inspect
-            sig = inspect.signature(websockets.connect)
-            bypass_headers = {"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"}
-            if "additional_headers" in sig.parameters:
-                connect_kwargs["additional_headers"] = bypass_headers
-            elif "extra_headers" in sig.parameters:
-                connect_kwargs["extra_headers"] = bypass_headers
+        import inspect
+        sig = inspect.signature(websockets.connect)
+        bypass_headers = {"Bypass-Tunnel-Reminder": "true", "User-Agent": "Mozilla/5.0"}
+        connect_kwargs = {
+            "max_size": 32 * 1024 * 1024,
+            "ping_interval": 30,
+            "ping_timeout": 60,
+        }
+        if "additional_headers" in sig.parameters:
+            connect_kwargs["additional_headers"] = bypass_headers
+        elif "extra_headers" in sig.parameters:
+            connect_kwargs["extra_headers"] = bypass_headers
 
-            async with websockets.connect(
-                ws_url,
-                **connect_kwargs,
-            ) as ws:
-                self.ws = ws
+        first_connect = True
+        while self.running:
+            if not first_connect:
+                print("[*] Reconnecting to Cloud Server in 3s...")
+                await asyncio.sleep(3.0)
+                if not self.running:
+                    break
+                print("[*] Re-establishing secure WebSocket bridge connection...")
+            else:
+                print("[*] Initiating secure WebSocket bridge connection...")
+                first_connect = False
 
-                # Optimize WebSocket transport for minimal packet latency
-                try:
-                    sock = ws.transport.get_extra_info("socket")
-                    if sock:
-                        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                except Exception:
-                    pass
+            ping_task = None
+            try:
+                async with websockets.connect(
+                    ws_url,
+                    **connect_kwargs,
+                ) as ws:
+                    self.ws = ws
 
-                print("[+] Tunnel connection opened. Authenticating...")
-
-                # 1. Send auth frame with HWID and License Key
-                from remote_bridge.hwid import get_hwid
-                client_hwid = get_hwid()
-                self.client_hwid = client_hwid
-                try:
-                    from remote_bridge.login_dialog import get_client_real_ip
-                    client_ip_val = get_client_real_ip()
-                except Exception:
-                    client_ip_val = "127.0.0.1"
-                auth_dict = {
-                    "key": self.token,
-                    "token": self.token,
-                    "hwid": client_hwid,
-                    "client_ip": client_ip_val,
-                    "version": "2.0.0",
-                }
-                await ws.send(pack_frame(MSG_AUTH, json.dumps(auth_dict).encode("utf-8")))
-                resp = await ws.recv()
-                if not isinstance(resp, bytes) or len(resp) < 5 or resp[4] != MSG_AUTH_OK:
-                    err_msg = "Authentication rejected by server."
-                    if isinstance(resp, bytes) and len(resp) >= 5:
-                        raw_payload = resp[5:].decode("utf-8", errors="ignore")
-                        try:
-                            err_data = json.loads(raw_payload)
-                            err_msg = err_data.get("error", raw_payload)
-                        except Exception:
-                            err_msg = raw_payload
-                    print(f"[-] Authentication rejected: {err_msg}")
-                    return
-
-                user_name = "User"
-                try:
-                    ok_data = json.loads(resp[5:].decode("utf-8", errors="ignore"))
-                    user_name = ok_data.get("user", "User")
-                    plan_str = ok_data.get("plan", "Pro Monthly")
-                    exp_fmt = ok_data.get("expires_formatted") or ok_data.get("expires_at", "Active")
-                    exp_iso = ok_data.get("expires_at") or exp_fmt
-                    status_str = ok_data.get("license_status") or ok_data.get("status", "active")
-
-                    meta_payload = {
-                        "valid": True,
-                        "status": status_str,
-                        "plan": plan_str,
-                        "expires": exp_fmt,
-                        "expires_at": exp_iso,
-                        "expires_formatted": exp_fmt,
-                        "remaining": exp_fmt,
-                        "user": user_name,
-                        "hwid": client_hwid,
-                        "key": self.token,
-                    }
-                    candidate_dirs = [
-                        Path("."),
-                        Path("src"),
-                        Path(__file__).resolve().parent.parent,
-                        Path(__file__).resolve().parent.parent / "src",
-                    ]
-                    for cd in candidate_dirs:
-                        try:
-                            cd.mkdir(parents=True, exist_ok=True)
-                            (cd / "license_meta.json").write_text(json.dumps(meta_payload, indent=2), encoding="utf-8")
-                            (cd / "license.key").write_text(self.token, encoding="utf-8")
-                        except Exception:
-                            pass
+                    # Optimize WebSocket transport for minimal packet latency
                     try:
-                        cfg_file = Path(__file__).resolve().parent.parent / "client_config.json"
-                        if cfg_file.exists():
-                            cdata = json.loads(cfg_file.read_text(encoding="utf-8"))
-                            cdata.update(meta_payload)
-                            cfg_file.write_text(json.dumps(cdata, indent=2), encoding="utf-8")
+                        sock = ws.transport.get_extra_info("socket")
+                        if sock:
+                            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                     except Exception:
                         pass
-                except Exception:
-                    pass
-                print(f"[OK] Authentication successful! Licensed to: {user_name} | HWID: [{client_hwid}]")
-                # Prime local ADB server in background for instant low-latency capture
-                asyncio.create_task(asyncio.to_thread(self._ensure_local_adb_ready))
-                # Send immediate ping to populate latency badge in UI
-                try:
-                    await ws.send(pack_frame(MSG_PING, struct.pack("!d", time.time())))
-                except Exception:
-                    pass
-                # Start live ping heartbeat loop
-                asyncio.create_task(self._ping_loop(ws))
-                print("[+] Synchronizing village profiles with server...")
 
-                # 2. Send Start Bot Control Command with config & verified HWID
-                merged_cfg = dict(config_dict or {})
-                if "bot_speed" not in merged_cfg:
-                    merged_cfg["bot_speed"] = self.bot_speed
+                    print("[+] Tunnel connection opened. Authenticating...")
 
-                start_payload = json.dumps({
-                    "action": "start",
-                    "hwid": client_hwid,
-                    "token": self.token,
-                    "config": merged_cfg,
-                }).encode("utf-8")
-                await ws.send(pack_frame(MSG_BOT_CONTROL, start_payload))
+                    # 1. Send auth frame with HWID and License Key
+                    from remote_bridge.hwid import get_hwid
+                    client_hwid = get_hwid()
+                    self.client_hwid = client_hwid
+                    try:
+                        from remote_bridge.login_dialog import get_client_real_ip
+                        client_ip_val = get_client_real_ip()
+                    except Exception:
+                        client_ip_val = "127.0.0.1"
+                    auth_dict = {
+                        "key": self.token,
+                        "token": self.token,
+                        "hwid": client_hwid,
+                        "client_ip": client_ip_val,
+                        "version": "2.0.0",
+                    }
+                    await ws.send(pack_frame(MSG_AUTH, json.dumps(auth_dict).encode("utf-8")))
+                    resp = await ws.recv()
+                    if not isinstance(resp, bytes) or len(resp) < 5 or resp[4] != MSG_AUTH_OK:
+                        err_msg = "Authentication rejected by server."
+                        if isinstance(resp, bytes) and len(resp) >= 5:
+                            raw_payload = resp[5:].decode("utf-8", errors="ignore")
+                            try:
+                                err_data = json.loads(raw_payload)
+                                err_msg = err_data.get("error", raw_payload)
+                            except Exception:
+                                err_msg = raw_payload
+                        print(f"[-] Authentication rejected: {err_msg}")
+                        return
 
-                print("[+] Remote Bot Engine active! Receiving live combat telemetry...")
-                print("=" * 68)
+                    user_name = "User"
+                    try:
+                        ok_data = json.loads(resp[5:].decode("utf-8", errors="ignore"))
+                        user_name = ok_data.get("user", "User")
+                        plan_str = ok_data.get("plan", "Pro Monthly")
+                        exp_fmt = ok_data.get("expires_formatted") or ok_data.get("expires_at", "Active")
+                        exp_iso = ok_data.get("expires_at") or exp_fmt
+                        status_str = ok_data.get("license_status") or ok_data.get("status", "active")
 
-                # 3. Handle messages from server
-                async for raw in ws:
-                    if not self.running:
-                        break
-                    if isinstance(raw, bytes) and len(raw) >= 5:
-                        msg_type = raw[4]
-                        payload = raw[5:]
+                        meta_payload = {
+                            "valid": True,
+                            "status": status_str,
+                            "plan": plan_str,
+                            "expires": exp_fmt,
+                            "expires_at": exp_iso,
+                            "expires_formatted": exp_fmt,
+                            "remaining": exp_fmt,
+                            "user": user_name,
+                            "hwid": client_hwid,
+                            "key": self.token,
+                        }
+                        candidate_dirs = [
+                            Path("."),
+                            Path("src"),
+                            Path(__file__).resolve().parent.parent,
+                            Path(__file__).resolve().parent.parent / "src",
+                        ]
+                        for cd in candidate_dirs:
+                            try:
+                                cd.mkdir(parents=True, exist_ok=True)
+                                (cd / "license_meta.json").write_text(json.dumps(meta_payload, indent=2), encoding="utf-8")
+                                (cd / "license.key").write_text(self.token, encoding="utf-8")
+                            except Exception:
+                                pass
+                        try:
+                            cfg_file = Path(__file__).resolve().parent.parent / "client_config.json"
+                            if cfg_file.exists():
+                                cdata = json.loads(cfg_file.read_text(encoding="utf-8"))
+                                cdata.update(meta_payload)
+                                cfg_file.write_text(json.dumps(cdata, indent=2), encoding="utf-8")
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                    print(f"[OK] Authentication successful! Licensed to: {user_name} | HWID: [{client_hwid}]")
+                    # Prime local ADB server in background for instant low-latency capture
+                    asyncio.create_task(asyncio.to_thread(self._ensure_local_adb_ready))
+                    # Send immediate ping to populate latency badge in UI
+                    try:
+                        await ws.send(pack_frame(MSG_PING, struct.pack("!d", time.time())))
+                    except Exception:
+                        pass
+                    # Start live ping heartbeat loop
+                    ping_task = asyncio.create_task(self._ping_loop(ws))
+                    print("[+] Synchronizing village profiles with server...")
 
-                        if msg_type == MSG_FAST_SCREENSHOT_REQ:
-                            asyncio.create_task(self._handle_fast_screenshot_req())
+                    # 2. Send Start Bot Control Command with config & verified HWID
+                    merged_cfg = dict(config_dict or {})
+                    if "bot_speed" not in merged_cfg:
+                        merged_cfg["bot_speed"] = self.bot_speed
 
-                        elif msg_type == MSG_OPEN_CHANNEL:
-                            (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
-                            asyncio.create_task(self._open_channel(ch_id))
+                    start_payload = json.dumps({
+                        "action": "start",
+                        "hwid": client_hwid,
+                        "token": self.token,
+                        "config": merged_cfg,
+                    }).encode("utf-8")
+                    await ws.send(pack_frame(MSG_BOT_CONTROL, start_payload))
 
-                        elif msg_type == MSG_CHANNEL_DATA:
-                            (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
-                            data = payload[4:]
-                            ch = self.channels.get(ch_id)
-                            if ch:
-                                _, ch_w = ch
-                                ch_w.write(data)
-                                if ch_w.transport and ch_w.transport.get_write_buffer_size() > 512 * 1024:
-                                    await ch_w.drain()
-                            else:
-                                if ch_id not in self.pending_channel_data:
-                                    self.pending_channel_data[ch_id] = []
-                                self.pending_channel_data[ch_id].append(data)
+                    print("[+] Remote Bot Engine active! Receiving live combat telemetry...")
+                    print("=" * 68)
 
-                        elif msg_type == MSG_CLOSE_CHANNEL:
-                            (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
-                            self.pending_channel_data.pop(ch_id, None)
-                            ch = self.channels.pop(ch_id, None)
-                            if ch:
-                                _, ch_w = ch
-                                try:
-                                    if ch_w.can_write_eof():
-                                        ch_w.write_eof()
-                                    await ch_w.drain()
-                                except Exception:
-                                    pass
-                                try:
-                                    ch_w.close()
-                                except Exception:
-                                    pass
+                    # 3. Handle messages from server
+                    try:
+                        async for raw in ws:
+                            if not self.running:
+                                break
+                            if isinstance(raw, bytes) and len(raw) >= 5:
+                                msg_type = raw[4]
+                                payload = raw[5:]
 
-                        elif msg_type == MSG_BOT_TELEMETRY:
-                            self._handle_telemetry(payload)
+                                if msg_type == MSG_FAST_SCREENSHOT_REQ:
+                                    asyncio.create_task(self._handle_fast_screenshot_req())
 
-                        elif msg_type == MSG_PONG:
-                            if len(payload) >= 8:
-                                (t0,) = struct.unpack("!d", payload[:8])
-                                ClientRemoteEngine.LATEST_PING_MS = max(1, int((time.time() - t0) * 1000))
+                                elif msg_type == MSG_OPEN_CHANNEL:
+                                    (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
+                                    asyncio.create_task(self._open_channel(ch_id))
 
-                        elif msg_type == MSG_PING:
-                            await ws.send(pack_frame(MSG_PONG, payload))
+                                elif msg_type == MSG_CHANNEL_DATA:
+                                    (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
+                                    data = payload[4:]
+                                    ch = self.channels.get(ch_id)
+                                    if ch:
+                                        _, ch_w = ch
+                                        ch_w.write(data)
+                                        if ch_w.transport and ch_w.transport.get_write_buffer_size() > 512 * 1024:
+                                            await ch_w.drain()
+                                    else:
+                                        if ch_id not in self.pending_channel_data:
+                                            self.pending_channel_data[ch_id] = []
+                                        self.pending_channel_data[ch_id].append(data)
 
+                                elif msg_type == MSG_CLOSE_CHANNEL:
+                                    (ch_id,) = CHANNEL_STRUCT.unpack(payload[:4])
+                                    self.pending_channel_data.pop(ch_id, None)
+                                    ch = self.channels.pop(ch_id, None)
+                                    if ch:
+                                        _, ch_w = ch
+                                        try:
+                                            if ch_w.can_write_eof():
+                                                ch_w.write_eof()
+                                            await ch_w.drain()
+                                        except Exception:
+                                            pass
+                                        try:
+                                            ch_w.close()
+                                        except Exception:
+                                            pass
 
-        except Exception as e:
-            if self.running:
+                                elif msg_type == MSG_BOT_TELEMETRY:
+                                    self._handle_telemetry(payload)
+
+                                elif msg_type == MSG_PONG:
+                                    if len(payload) >= 8:
+                                        (t0,) = struct.unpack("!d", payload[:8])
+                                        ClientRemoteEngine.LATEST_PING_MS = max(1, int((time.time() - t0) * 1000))
+
+                                elif msg_type == MSG_PING:
+                                    await ws.send(pack_frame(MSG_PONG, payload))
+                    finally:
+                        if ping_task and not ping_task.done():
+                            ping_task.cancel()
+
+            except Exception as e:
+                if not self.running:
+                    break
                 print(f"[-] Connection to Cloud Server lost: {e}")
-        finally:
-            ClientRemoteEngine.LATEST_PING_MS = None
-            print("[+] Session disconnected cleanly.")
+            finally:
+                if ping_task and not ping_task.done():
+                    ping_task.cancel()
+                for ch_id, ch in list(self.channels.items()):
+                    try:
+                        _, ch_w = ch
+                        ch_w.close()
+                    except Exception:
+                        pass
+                self.channels.clear()
+                self.pending_channel_data.clear()
+
+        ClientRemoteEngine.LATEST_PING_MS = None
+        print("[+] Session disconnected cleanly.")
 
     async def _open_channel(self, ch_id: int) -> None:
         try:
