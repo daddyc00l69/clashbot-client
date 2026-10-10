@@ -726,7 +726,7 @@ class ClientRemoteEngine:
             res = subprocess.run(
                 [adb_bin, "-s", target, "exec-out", "screencap"],
                 capture_output=True,
-                timeout=1.8,
+                timeout=3.5,
             )
             raw_data = res.stdout
             if res.returncode == 0 and len(raw_data) >= 16:
@@ -770,7 +770,7 @@ class ClientRemoteEngine:
             res = subprocess.run(
                 [adb_bin, "-s", target, "exec-out", "screencap", "-p"],
                 capture_output=True,
-                timeout=2.0,
+                timeout=3.5,
             )
             if res.returncode == 0 and len(res.stdout) > 2000:
                 img = cv2.imdecode(np.frombuffer(res.stdout, np.uint8), cv2.IMREAD_COLOR)
