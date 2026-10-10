@@ -21,6 +21,7 @@ import hashlib
 import platform
 import threading
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
@@ -51,14 +52,14 @@ _data_key_cache = b'n!n\x19uW\r\ne\x93\xaa\x01/Yq\xe7 \xb5\xb9\xd1\xcc6y\x90\x9e
 _heartbeat_stop_event = threading.Event()
 _hwid_v3_components_cache: Optional[Dict[str, str]] = None
 license_meta_cache: Dict[str, Any] = {
-    "valid": True,
-    "status": "valid",
-    "expires": "Lifetime",
-    "expires_at": "Lifetime",
-    "remaining": "Unlimited",
-    "seconds_left": 999999999,
-    "role": "unlimited",
-    "plan": "Community Lifetime Edition",
+    "valid": False,
+    "status": "pending",
+    "expires": "",
+    "expires_at": "",
+    "remaining": "",
+    "seconds_left": 0,
+    "role": "pro",
+    "plan": "Pro Monthly",
     "download_url": "https://github.com/AradhyeTushar/ClashBot-AI",
     "update_download_url": "https://github.com/AradhyeTushar/ClashBot-AI",
     "force_update": False,
@@ -136,7 +137,20 @@ def _hash_hwid_markers(markers: Dict[str, str]) -> str:
 
 
 def get_hwid() -> str:
-    """Return primary host hardware identifier."""
+    """Return primary host hardware identifier matching remote_bridge canonical format."""
+    try:
+        from remote_bridge.hwid import get_hwid as _bridge_get_hwid
+        return _bridge_get_hwid()
+    except Exception:
+        pass
+    try:
+        cfg_p = BASE_PATH.parent / "client_config.json"
+        if cfg_p.exists():
+            cfg = json.loads(cfg_p.read_text(encoding="utf-8"))
+            if cfg.get("hwid"):
+                return str(cfg["hwid"]).strip().upper()
+    except Exception:
+        pass
     return _hash_hwid_markers(_collect_v3_markers())
 
 
@@ -172,9 +186,60 @@ def _cache_data_key(raw_b64: Any) -> None:
             pass
 
 
+def _read_persisted_meta() -> Dict[str, Any]:
+    """Read saved license metadata from license_meta.json or client_config.json."""
+    candidates = [
+        BASE_PATH / "license_meta.json",
+        BASE_PATH.parent / "src" / "license_meta.json",
+        BASE_PATH.parent / "license_meta.json",
+        BASE_PATH.parent / "client_config.json",
+        Path.home() / ".clashbot_ai" / "license_meta.json",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and data:
+                    return data
+            except Exception:
+                pass
+    return {}
+
+
+def _query_keyvory_db(key: str) -> Optional[Dict[str, Any]]:
+    """Query Keyvory database directly if running on host server PC."""
+    if not key:
+        return None
+    db_paths = [
+        BASE_PATH.parent / "server" / "web_license_server" / "server" / "database" / "keyvory.db",
+        BASE_PATH.parent.parent / "server" / "web_license_server" / "server" / "database" / "keyvory.db",
+    ]
+    for db_path in db_paths:
+        if db_path.exists():
+            try:
+                import sqlite3
+                conn = sqlite3.connect(str(db_path), timeout=3.0)
+                conn.row_factory = sqlite3.Row
+                c = conn.cursor()
+                row = c.execute("SELECT * FROM licenses WHERE license_key = ? COLLATE NOCASE", (key.strip(),)).fetchone()
+                conn.close()
+                if row:
+                    return dict(row)
+            except Exception:
+                pass
+    return None
+
+
 def format_remaining(seconds: Optional[int] = None) -> str:
     """Return human readable license remaining duration."""
-    return "Lifetime Unlimited"
+    meta = load_license_meta()
+    if meta.get("expires_formatted"):
+        return str(meta["expires_formatted"])
+    if meta.get("expires"):
+        return str(meta["expires"])
+    if meta.get("remaining"):
+        return str(meta["remaining"])
+    return "Active"
 
 
 def get_license_error_message(result: Optional[Dict[str, Any]] = None) -> str:
@@ -185,15 +250,36 @@ def get_license_error_message(result: Optional[Dict[str, Any]] = None) -> str:
 
 
 def load_key() -> str:
-    """Read saved license key from storage or return unlocked default."""
+    """Read saved license key from storage."""
+    # 1. Check license_meta.json
+    for p in [BASE_PATH / "license_meta.json", BASE_PATH.parent / "src" / "license_meta.json", BASE_PATH.parent / "license_meta.json"]:
+        if p.exists():
+            try:
+                d = json.loads(p.read_text(encoding="utf-8"))
+                k = (d.get("key") or d.get("license_key") or "").strip()
+                if k and not k.startswith("CB-COMMUNITY-EDITION"):
+                    return k
+            except Exception:
+                pass
+    # 2. Check LICENSE_FILE
     try:
         if LICENSE_FILE.exists():
             content = LICENSE_FILE.read_text(encoding="utf-8").strip()
-            if content:
+            if content and not content.startswith("CB-COMMUNITY-EDITION"):
                 return content
     except Exception:
         pass
-    return "CB-COMMUNITY-EDITION-LIFETIME-UNLOCKED"
+    # 3. Check client_config.json
+    cfg_p = BASE_PATH.parent / "client_config.json"
+    if cfg_p.exists():
+        try:
+            cfg = json.loads(cfg_p.read_text(encoding="utf-8"))
+            k = cfg.get("license_key") or cfg.get("key") or cfg.get("token")
+            if k and not str(k).startswith("CB-COMMUNITY-EDITION"):
+                return str(k).strip()
+        except Exception:
+            pass
+    return ""
 
 
 def load_saved_key() -> str:
@@ -204,7 +290,19 @@ def load_saved_key() -> str:
 def save_key(key: str) -> None:
     """Save license key to local storage."""
     try:
-        LICENSE_FILE.write_text(str(key).strip(), encoding="utf-8")
+        k = str(key).strip()
+        LICENSE_FILE.write_text(k, encoding="utf-8")
+        # Also sync to client_config.json
+        cfg_p = BASE_PATH.parent / "client_config.json"
+        if cfg_p.exists():
+            try:
+                cfg = json.loads(cfg_p.read_text(encoding="utf-8"))
+                cfg["license_key"] = k
+                cfg["key"] = k
+                cfg["token"] = k
+                cfg_p.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -225,7 +323,7 @@ def clear_saved_key() -> None:
 
 def load_license_meta() -> Dict[str, Any]:
     """Load cached license metadata."""
-    if license_meta_cache:
+    if license_meta_cache and license_meta_cache.get("valid") and license_meta_cache.get("status") not in ("pending", "unknown"):
         return dict(license_meta_cache)
     return validate_license_details(load_key())
 
@@ -235,47 +333,245 @@ def save_license_meta(meta: Dict[str, Any]) -> None:
     global license_meta_cache
     if isinstance(meta, dict):
         license_meta_cache.update(meta)
+        try:
+            p = BASE_PATH / "license_meta.json"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(dict(license_meta_cache), indent=2), encoding="utf-8")
+        except Exception:
+            pass
 
 
 def validate_license(key: Optional[str] = None) -> bool:
     """Check if the provided or stored license is valid."""
-    return True
+    res = validate_license_details(key)
+    return bool(res.get("valid", False))
 
 
 def validate_license_details(key: Optional[str] = None) -> Dict[str, Any]:
     """
-    Validate license details.
-    Always returns active, lifetime unlocked status for ClashBot-AI Open Source.
+    Validate license details dynamically against Keyvory DB or persisted credentials.
+    Enforces status (suspended/banned/expired) and displays actual subscription plan and expiration.
     """
-    current_key = key or load_key()
+    current_key = (key or load_key()).strip()
     host_hwid = get_hwid()
 
+    # Default fallback if no key
+    if not current_key:
+        meta = {
+            "valid": False,
+            "status": "missing",
+            "reason": "Please enter a valid license key.",
+            "expires": "Sign In Required",
+            "expires_at": "",
+            "expires_formatted": "Sign In Required",
+            "remaining": "Sign In Required",
+            "seconds_left": 0,
+            "hwid": host_hwid,
+            "plan": "No Active License",
+            "latest_version": CURRENT_VERSION,
+        }
+        license_meta_cache.update(meta)
+        return meta
+
+    # 1. Host PC Direct Keyvory DB check
+    row = _query_keyvory_db(current_key)
+    if row:
+        raw_status = (row.get("status") or "active").strip().lower()
+        lic_type = str(row.get("license_type") or "standard").lower()
+        if lic_type == "trial" or (row.get("plan") or "").lower() == "trial":
+            plan_name = "7-Day Free Trial"
+        elif lic_type == "lifetime" or (row.get("plan") or "").lower() == "lifetime":
+            plan_name = "Community Lifetime Edition"
+        else:
+            plan_name = (row.get("plan") or "pro").capitalize()
+            if plan_name.lower() in ("pro", "standard"):
+                plan_name = f"{plan_name} Monthly"
+
+        exp_raw = row.get("expiration_date") or row.get("expires_at")
+        if lic_type == "lifetime" or not exp_raw or "9999" in str(exp_raw):
+            expires_at = "Lifetime"
+            exp_formatted = "Lifetime Unlimited"
+        else:
+            try:
+                clean_exp = str(exp_raw).split(".")[0].replace("T", " ")
+                dt = datetime.strptime(clean_exp, "%Y-%m-%d %H:%M:%S")
+                exp_formatted = dt.strftime("%b %d, %Y")
+                expires_at = dt.strftime("%Y-%m-%d")
+            except Exception:
+                expires_at = str(exp_raw).split(" ")[0]
+                exp_formatted = expires_at
+
+        bound_hwid = (row.get("hwid") or "").strip()
+
+        # Check suspension / bans
+        if raw_status in ("suspended", "banned"):
+            meta = {
+                "valid": False,
+                "status": raw_status,
+                "reason": f"License is {raw_status} by administrator.",
+                "expires": exp_formatted,
+                "expires_at": expires_at,
+                "expires_formatted": exp_formatted,
+                "remaining": f"Disabled ({raw_status})",
+                "seconds_left": 0,
+                "hwid": host_hwid,
+                "bound_hwid": bound_hwid,
+                "plan": plan_name,
+                "latest_version": CURRENT_VERSION,
+            }
+            license_meta_cache.update(meta)
+            return meta
+
+        # Check HWID binding if present (case-insensitive)
+        if bound_hwid and bound_hwid.strip().upper() != host_hwid.strip().upper():
+            meta = {
+                "valid": False,
+                "status": "hwid_mismatch",
+                "reason": f"Hardware mismatch! License bound to {bound_hwid}.",
+                "expires": exp_formatted,
+                "expires_at": expires_at,
+                "expires_formatted": exp_formatted,
+                "remaining": "HWID Mismatch",
+                "seconds_left": 0,
+                "hwid": host_hwid,
+                "bound_hwid": bound_hwid,
+                "plan": plan_name,
+                "latest_version": CURRENT_VERSION,
+            }
+            license_meta_cache.update(meta)
+            return meta
+
+        meta = {
+            "valid": True,
+            "status": "active",
+            "reason": None,
+            "expires": exp_formatted,
+            "expires_at": expires_at,
+            "expires_formatted": exp_formatted,
+            "remaining": exp_formatted,
+            "seconds_left": 86400 * 30,
+            "hwid": host_hwid,
+            "bound_hwid": bound_hwid,
+            "plan": plan_name,
+            "role": plan_name,
+            "tier": plan_name,
+            "license_type": lic_type,
+            "license_key": current_key,
+            "latest_version": CURRENT_VERSION,
+            "download_url": "https://github.com/AradhyeTushar/ClashBot-AI",
+            "update_download_url": "https://github.com/AradhyeTushar/ClashBot-AI",
+            "force_update": False,
+            "update_available": False,
+            "raw": {
+                "status": "valid",
+                "role": plan_name,
+                "expires": exp_formatted,
+                "expires_at": expires_at,
+                "seconds_left": 86400 * 30,
+                "license_key": current_key,
+            },
+        }
+        license_meta_cache.update(meta)
+        return meta
+
+    # 2. Persisted Client Metadata check (from remote WebSocket login)
+    persisted = _read_persisted_meta()
+    if persisted:
+        persisted_key = (persisted.get("key") or persisted.get("license_key") or "").strip()
+        if not persisted_key or persisted_key.upper() == current_key.upper():
+            raw_status = (persisted.get("status") or persisted.get("license_status") or "active").lower()
+            plan_name = persisted.get("plan") or "Pro Monthly"
+            exp_fmt = persisted.get("expires_formatted") or persisted.get("expires") or persisted.get("expires_at") or "Active"
+            exp_iso = persisted.get("expires_at") or exp_fmt
+
+            if raw_status in ("suspended", "banned"):
+                meta = {
+                    "valid": False,
+                    "status": raw_status,
+                    "reason": f"License is {raw_status}.",
+                    "expires": exp_fmt,
+                    "expires_at": exp_iso,
+                    "expires_formatted": exp_fmt,
+                    "remaining": f"Disabled ({raw_status})",
+                    "seconds_left": 0,
+                    "hwid": host_hwid,
+                    "plan": plan_name,
+                    "role": plan_name,
+                    "tier": plan_name,
+                    "license_key": current_key,
+                    "latest_version": CURRENT_VERSION,
+                    "raw": {
+                        "status": raw_status,
+                        "role": plan_name,
+                        "expires": exp_fmt,
+                        "expires_at": exp_iso,
+                        "seconds_left": 0,
+                        "license_key": current_key,
+                    },
+                }
+                license_meta_cache.update(meta)
+                return meta
+
+            meta = {
+                "valid": True,
+                "status": "active",
+                "reason": None,
+                "expires": exp_fmt,
+                "expires_at": exp_iso,
+                "expires_formatted": exp_fmt,
+                "remaining": exp_fmt,
+                "seconds_left": 86400 * 30,
+                "hwid": host_hwid,
+                "plan": plan_name,
+                "role": plan_name,
+                "tier": plan_name,
+                "license_type": persisted.get("license_type", "trial" if "trial" in plan_name.lower() else "standard"),
+                "license_key": current_key,
+                "latest_version": CURRENT_VERSION,
+                "download_url": "https://github.com/AradhyeTushar/ClashBot-AI",
+                "update_download_url": "https://github.com/AradhyeTushar/ClashBot-AI",
+                "force_update": False,
+                "update_available": False,
+                "raw": {
+                    "status": "valid",
+                    "role": plan_name,
+                    "expires": exp_fmt,
+                    "expires_at": exp_iso,
+                    "seconds_left": 86400 * 30,
+                    "license_key": current_key,
+                },
+            }
+            license_meta_cache.update(meta)
+            return meta
+
+    # 3. Unverified or unrecognized key
     meta = {
-        "valid": True,
-        "status": "valid",
-        "reason": None,
-        "expires": "Lifetime",
-        "expires_at": "Lifetime",
-        "remaining": "Lifetime Unlimited",
-        "seconds_left": 999999999,
+        "valid": False,
+        "status": "unverified",
+        "reason": "License not authenticated. Please launch the login window to sign in.",
+        "expires": "Sign In Required",
+        "expires_at": "",
+        "expires_formatted": "Sign In Required",
+        "remaining": "Sign In Required",
+        "seconds_left": 0,
         "hwid": host_hwid,
-        "hwid_v2": host_hwid,
-        "hwid_legacy": get_hwid_legacy(),
+        "plan": "No Active License",
+        "role": "No Active License",
+        "tier": "No Active License",
+        "license_key": current_key,
         "latest_version": CURRENT_VERSION,
         "download_url": "https://github.com/AradhyeTushar/ClashBot-AI",
         "update_download_url": "https://github.com/AradhyeTushar/ClashBot-AI",
         "force_update": False,
         "update_available": False,
         "raw": {
-            "status": "valid",
-            "role": "unlimited",
-            "expires": "Lifetime",
-            "seconds_left": 999999999,
-            "data_key": "biFuGXVXDQplk6oBL1lx5yC1udHMNnmQnvh3ISSgreM=",
-            "latest_version": CURRENT_VERSION,
-            "matched_hwid": "v3",
+            "status": "invalid",
+            "role": "None",
+            "expires": "Sign In Required",
+            "expires_at": "",
+            "seconds_left": 0,
             "license_key": current_key,
-        }
+        },
     }
     license_meta_cache.update(meta)
     return meta

@@ -1,11 +1,11 @@
 {
   "server_url": "https://clashbot.devtushar.uk",
-  "key": "CLASH-PRO-FRIEND",
-  "license_key": "CLASH-PRO-FRIEND",
-  "token": "CLASH-PRO-FRIEND",
+  "key": "",
+  "license_key": "",
+  "token": "",
   "remember_key": true,
   "auto_login": false,
-  "emulator_port": 16416,
+  "emulator_port": 5555,
   "bot_speed": "balanced",
   "hwid": ""
 }

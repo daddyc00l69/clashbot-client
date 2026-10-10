@@ -109,6 +109,37 @@ def save_client_config(cfg: dict) -> None:
         print(f"[!] Warning saving client_config.json: {e}")
 
 
+_cached_client_public_ip: str | None = None
+
+def get_client_real_ip() -> str:
+    global _cached_client_public_ip
+    if _cached_client_public_ip:
+        return _cached_client_public_ip
+    import urllib.request
+    import socket
+    for url in ("https://api.ipify.org", "https://icanhazip.com", "https://ifconfig.me/ip"):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "curl/7.68.0"})
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
+                ip = resp.read().decode("utf-8").strip()
+                if ip and len(ip.split(".")) == 4:
+                    _cached_client_public_ip = ip
+                    return ip
+        except Exception:
+            pass
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if ip and ip not in ("127.0.0.1", "0.0.0.0"):
+            _cached_client_public_ip = ip
+            return ip
+    except Exception:
+        pass
+    return "127.0.0.1"
+
+
 class VerifyWorker(QThread):
     """Background worker to verify license & HWID with instant local path and multi-candidate network failover."""
 
@@ -120,25 +151,10 @@ class VerifyWorker(QThread):
         self.key = key
         self.hwid = hwid
         self.working_url: str = ""
+        self.auth_data: dict = {}
 
     def run(self) -> None:
-        # 1. Local License Manager Fast-Path (Instant 0ms validation for host server & local bot)
-        try:
-            try:
-                from server.license_manager import get_license_manager
-            except ImportError:
-                from remote_bridge.license_manager import get_license_manager
-            mgr = get_license_manager()
-            if mgr and hasattr(mgr, "verify_license") and mgr.keys:
-                if self.key in mgr.keys:
-                    is_ok, reason, info = mgr.verify_license(self.key, self.hwid)
-                    user = info.get("user", "User") if isinstance(info, dict) else "User"
-                    self.finished.emit(is_ok, reason, user)
-                    return
-        except Exception:
-            pass
-
-        # 2. Asynchronous Multi-Candidate WebSocket Verification (Zero-timeout failover)
+        # Asynchronous Multi-Candidate WebSocket Verification (Zero-timeout failover)
         import asyncio
         import inspect
         import socket
@@ -156,16 +172,17 @@ class VerifyWorker(QThread):
                 u = f"{u}/ws"
             return u
 
-        # Candidate endpoints to try
-        candidates: list[str] = []
+        # Candidate endpoints to try (prioritize local server first if running locally)
+        candidates: list[str] = [
+            _format_ws_url("ws://127.0.0.1:8765"),
+        ]
         if self.server_url and self.server_url.strip():
             candidates.append(_format_ws_url(self.server_url))
 
         # Always probe permanent Cloudflare domain
         candidates.append(_format_ws_url("https://clashbot.devtushar.uk"))
 
-        # Local loopback & LAN candidates
-        candidates.append(_format_ws_url("ws://127.0.0.1:8765"))
+        # LAN candidates
         try:
             local_ip = socket.gethostbyname(socket.gethostname())
             if local_ip and local_ip not in ("127.0.0.1", "0.0.0.0"):
@@ -181,10 +198,12 @@ class VerifyWorker(QThread):
                 seen.add(c)
                 unique_candidates.append(c)
 
+        client_real_ip = get_client_real_ip()
         auth_payload = json.dumps({
             "key": self.key,
             "token": self.key,
             "hwid": self.hwid,
+            "client_ip": client_real_ip,
             "version": "2.0.0",
         }).encode("utf-8")
 
@@ -203,7 +222,7 @@ class VerifyWorker(QThread):
 
                 async with websockets.connect(cand, **connect_kwargs) as ws:
                     await ws.send(pack_frame(MSG_AUTH, auth_payload))
-                    resp = await asyncio.wait_for(ws.recv(), timeout=3.0)
+                    resp = await asyncio.wait_for(ws.recv(), timeout=3.5)
 
                     if isinstance(resp, bytes) and len(resp) >= 5:
                         msg_type = resp[4]
@@ -218,20 +237,20 @@ class VerifyWorker(QThread):
                         if msg_type == MSG_AUTH_OK:
                             user = data.get("user", "User") if isinstance(data, dict) else "User"
                             msg = data.get("message", "License Verified") if isinstance(data, dict) else payload
-                            return (True, msg or "License Verified", user, cand)
+                            return (True, msg or "License Verified", user, cand, data)
                         elif msg_type == MSG_AUTH_FAIL:
                             err_msg = data.get("error", payload) if isinstance(data, dict) else payload
-                            return (False, err_msg or "Authentication failed.", "", cand)
+                            return (False, err_msg or "Authentication failed.", "", cand, data)
             except asyncio.CancelledError:
-                return (None, "Cancelled", "", cand)
+                return (None, "Cancelled", "", cand, {})
             except asyncio.TimeoutError:
-                return (None, "Server connection timed out.", "", cand)
+                return (None, "Server connection timed out.", "", cand, {})
             except Exception as e:
                 err = str(e)
                 if "10061" in err or "refused" in err.lower():
-                    return (None, "Server is offline (connection refused).", "", cand)
-                return (None, f"Connection error: {err}", "", cand)
-            return (None, "Unexpected server response.", "", cand)
+                    return (None, "Server is offline (connection refused).", "", cand, {})
+                return (None, f"Connection error: {err}", "", cand, {})
+            return (None, "Unexpected server response.", "", cand, {})
 
         async def _test_auth():
             if not unique_candidates:
@@ -242,12 +261,13 @@ class VerifyWorker(QThread):
             last_err = ""
 
             for fut in asyncio.as_completed(tasks):
-                status, msg, user, cand = await fut
+                status, msg, user, cand, data = await fut
                 if status is True:
                     for t in tasks:
                         if not t.done():
                             t.cancel()
                     self.working_url = cand
+                    self.auth_data = data
                     return True, msg, user
                 elif status is False:
                     auth_rejection = msg
@@ -543,15 +563,68 @@ class ClashBotLoginDialog(QDialog):
 
             key = self.key_edit.text().strip()
             rem = self.rem_cb.isChecked()
+            auth_meta = getattr(self.worker, "auth_data", {}) if self.worker else {}
+
+            exp_fmt = auth_meta.get("expires_formatted") or auth_meta.get("expires_at", "Active")
+            exp_iso = auth_meta.get("expires_at") or exp_fmt
+            plan_str = auth_meta.get("plan", "Pro Monthly")
+            status_str = auth_meta.get("license_status") or auth_meta.get("status", "active")
 
             self.cfg["key"] = key
             self.cfg["license_key"] = key
             self.cfg["token"] = key
+            self.cfg["user"] = user
             self.cfg["remember_key"] = rem
             self.cfg["hwid"] = self.hwid
+            self.cfg["plan"] = plan_str
+            self.cfg["expires"] = exp_fmt
+            self.cfg["expires_at"] = exp_iso
+            self.cfg["expires_formatted"] = exp_fmt
+            self.cfg["status"] = status_str
             if self.worker and getattr(self.worker, "working_url", ""):
                 self.cfg["server_url"] = self.worker.working_url
             save_client_config(self.cfg)
+
+            # Persist clean metadata and license.key for UI components
+            try:
+                meta_dict = {
+                    "valid": True,
+                    "status": status_str,
+                    "plan": plan_str,
+                    "expires": exp_fmt,
+                    "expires_at": exp_iso,
+                    "expires_formatted": exp_fmt,
+                    "remaining": exp_fmt,
+                    "user": user,
+                    "hwid": self.hwid,
+                    "key": key,
+                }
+                candidate_dirs = [
+                    Path("."),
+                    Path("src"),
+                    Path(os.getcwd()),
+                    Path(os.getcwd()) / "src",
+                    Path(__file__).resolve().parent.parent,
+                    Path(__file__).resolve().parent.parent / "src",
+                    Path(__file__).resolve().parent.parent / "friend_client_bundle" / "src",
+                ]
+                for base in candidate_dirs:
+                    try:
+                        base.mkdir(parents=True, exist_ok=True)
+                        meta_file = base / "license_meta.json"
+                        with open(meta_file, "w", encoding="utf-8") as f:
+                            json.dump(meta_dict, f, indent=2)
+                        kfile = base / "license.key"
+                        kfile.write_text(key, encoding="utf-8")
+                    except Exception:
+                        pass
+                try:
+                    import license_manager
+                    license_manager.save_license_meta(meta_dict)
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
             QTimer.singleShot(400, self.accept)
         else:

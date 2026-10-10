@@ -222,9 +222,10 @@ class LicenseSplash(QDialog):
 
         # Status info
         status_layout = QHBoxLayout()
-        badge_label = QLabel("STATUS: LIFETIME COMMUNITY EDITION (ACTIVE)", self)
-        badge_label.setStyleSheet("color: #48BB78; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
-        status_layout.addWidget(badge_label)
+        self.badge_label = QLabel(self)
+        initial_meta = validate_license_details(load_saved_key())
+        self._update_badge(initial_meta)
+        status_layout.addWidget(self.badge_label)
         status_layout.addStretch()
         layout.addLayout(status_layout)
 
@@ -255,6 +256,17 @@ class LicenseSplash(QDialog):
 
         layout.addLayout(btn_layout)
 
+    def _update_badge(self, meta: Dict[str, Any]) -> None:
+        status = (meta.get("status") or "active").upper()
+        plan = (meta.get("plan") or "PRO").upper()
+        expires = meta.get("expires") or meta.get("expires_formatted") or meta.get("expires_at") or "ACTIVE"
+        if status in ("SUSPENDED", "BANNED", "EXPIRED", "REVOKED", "HWID_MISMATCH", "MISSING", "UNVERIFIED") or not meta.get("valid", True):
+            self.badge_label.setText(f"STATUS: {status} • ACCESS DENIED")
+            self.badge_label.setStyleSheet("color: #F56565; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
+        else:
+            self.badge_label.setText(f"PLAN: {plan} ({status}) • EXPIRES: {expires}")
+            self.badge_label.setStyleSheet("color: #48BB78; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;")
+
     def _on_mini_ui_toggled(self, checked: bool) -> None:
         self.launch_mini_ui = checked
         cfg = _load_bot_config()
@@ -262,7 +274,9 @@ class LicenseSplash(QDialog):
         _save_bot_config(cfg)
 
     def _on_key_changed(self, text: str) -> None:
-        pass
+        if len(text.strip()) >= 5:
+            meta = validate_license_details(text.strip())
+            self._update_badge(meta)
 
     def _apply_key_format(self, text: str) -> str:
         return text.strip().upper()
@@ -275,8 +289,12 @@ class LicenseSplash(QDialog):
 
     def _on_activate_clicked(self) -> None:
         key = self.key_input.text().strip() or load_saved_key()
-        save_key(key)
         result = validate_license_details(key)
+        self._update_badge(result)
+        if not result.get("valid", False):
+            self._show_error(result.get("reason") or "Invalid or suspended license key.")
+            return
+        save_key(key)
         self._on_validation_result(result)
 
     def _on_validation_result(self, result: Dict[str, Any]) -> None:
@@ -290,16 +308,23 @@ class LicenseSplash(QDialog):
             QTimer.singleShot(10, self._auto_accept_flow)
 
     def _auto_accept_flow(self) -> None:
-        result = validate_license_details(self.key_input.text())
-        self._on_validation_result(result)
+        key = self.key_input.text().strip() or load_saved_key()
+        result = validate_license_details(key)
+        self._update_badge(result)
+        if result.get("valid", False):
+            self._on_validation_result(result)
 
     def exec(self) -> int:
         """
-        Execute dialog. In Free/Unlocked mode, auto-activates and returns
-        Accepted immediately without modal blocking.
+        Execute dialog. If a valid, non-suspended key is saved, auto-accepts.
+        If suspended or missing, displays the window modally.
         """
-        result = validate_license_details(load_saved_key())
+        key = load_saved_key()
+        result = validate_license_details(key)
         save_license_meta(result)
+        self._update_badge(result)
+        if not result.get("valid", False):
+            return super().exec()
         self.validation_ready.emit(result)
         self.setResult(QDialog.Accepted)
         return QDialog.Accepted

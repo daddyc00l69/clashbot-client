@@ -43,7 +43,23 @@ def ensure_emulator_config_ready():
     pass
 
 def load_saved_key():
-    return "CLIENT-COMMUNITY-LICENSE-2026"
+    try:
+        from license_manager import load_saved_key as _lm_load_saved_key
+        k = _lm_load_saved_key()
+        if k:
+            return k
+    except Exception:
+        pass
+    cfg_p = _project_root / "client_config.json"
+    if cfg_p.exists():
+        try:
+            cfg = json.loads(cfg_p.read_text(encoding="utf-8"))
+            k = cfg.get("license_key") or cfg.get("key") or cfg.get("token")
+            if k:
+                return str(k).strip()
+        except Exception:
+            pass
+    return ""
 
 def get_license_error_message():
     return ""
@@ -175,18 +191,84 @@ def main(stats):
         if app:
             for widget in app.topLevelWidgets():
                 if widget.__class__.__name__ == "MainWindow":
-                    # Flush tab save methods to ensure latest UI inputs are saved
+                    # 1. Flush tab save methods to ensure latest UI inputs are saved
                     for updater in ["update_builder", "update_general", "update_attack_army", "update_donations", "update_upgrade_research"]:
                         if hasattr(widget, updater):
                             try:
                                 getattr(widget, updater)()
                             except Exception:
                                 pass
-                    if hasattr(widget, "builder_enabled") and widget.builder_enabled:
-                        profile_config["BUILDER_ENABLED"] = bool(widget.builder_enabled.isChecked())
+                    # 2. Synchronize active configuration from MainWindow's config_mgr
+                    if hasattr(widget, "config_mgr") and widget.config_mgr:
+                        try:
+                            prof = getattr(widget, "current_profile", None)
+                            mgr_data = widget.config_mgr.load(prof)
+                            if isinstance(mgr_data, dict):
+                                profile_config.update(mgr_data)
+                        except Exception:
+                            pass
+                    # 3. Explicitly read direct checkbox states from UI
+                    widget_mappings = {
+                        "builder_enabled": "BUILDER_ENABLED",
+                        "clan_capital_enable": "CLAN_CAPITAL",
+                        "clan_capital_dump_gold_treasury_if_full": "CLAN_CAPITAL_DUMP_GOLD_TREASURY_IF_FULL",
+                        "clan_games_enable": "CLAN_GAMES",
+                        "cg_claim_rewards_for_gems": "CG_CLAIM_REWARDS_FOR_GEMS",
+                        "war_attacks_enabled": "WAR_ATTACKS_ENABLED",
+                        "war_one_attack_per_session": "WAR_ONE_ATTACK_PER_SESSION",
+                        "war_request_cc": "WAR_REQUEST_CC",
+                        "war_wait_cc": "WAR_WAIT_FOR_CC",
+                        "request_leave_enabled": "REQUEST_AND_LEAVE_ENABLED",
+                        "request_leave_join": "REQUEST_AND_LEAVE_JOIN",
+                        "request_leave_leave": "REQUEST_AND_LEAVE_LEAVE",
+                        "request_leave_set_army_slot1": "REQUEST_AND_LEAVE_SET_ARMY_SLOT1",
+                        "request_leave_wait_cooldown": "REQUEST_AND_LEAVE_WAIT_FOR_COOLDOWN",
+                        "home_upgrade_enabled": "HOME_UPGRADE_ENABLED",
+                        "home_upgrade_perform_suggested": "HOME_UPGRADE_PERFORM_SUGGESTED",
+                        "home_upgrade_suggested_rotate": "HOME_UPGRADE_SUGGESTED_ROTATE",
+                        "home_upgrade_suggested_ignore_townhall": "HOME_UPGRADE_SUGGESTED_IGNORE_TOWNHALL",
+                        "home_save_1_builder": "HOME_SAVE_1_BUILDER",
+                        "home_research_enabled": "HOME_RESEARCH_ENABLED",
+                        "home_research_perform_suggested": "HOME_RESEARCH_PERFORM_SUGGESTED",
+                        "home_research_suggested_rotate": "HOME_RESEARCH_SUGGESTED_ROTATE",
+                        "home_research_pets": "HOME_RESEARCH_PETS",
+                        "home_research_use_1_gem_helper": "HOME_RESEARCH_USE_1_GEM_HELPER",
+                        "bb_upgrade_enabled": "BB_UPGRADE_ENABLED",
+                        "bb_upgrade_perform_suggested": "BB_UPGRADE_PERFORM_SUGGESTED",
+                        "bb_upgrade_suggested_rotate": "BB_UPGRADE_SUGGESTED_ROTATE",
+                        "bb_save_1_builder": "BB_SAVE_1_BUILDER",
+                        "bb_research_enabled": "BB_RESEARCH_ENABLED",
+                        "bb_research_perform_suggested": "BB_RESEARCH_PERFORM_SUGGESTED",
+                        "bb_research_suggested_rotate": "BB_RESEARCH_SUGGESTED_ROTATE",
+                        "upgrade_walls": "UPGRADE_WALLS",
+                        "builderbase_upgrade_walls": "BUILDERBASE_UPGRADE_WALLS",
+                        "builder_collect_gem_mine": "BUILDER_COLLECT_GEM_MINE",
+                        "builder_collect_resources_first_run": "BUILDER_COLLECT_RESOURCES",
+                        "builder_end_after_drop": "BUILDER_END_AFTER_TROOP_DROP",
+                    }
+                    for w_attr, cfg_key in widget_mappings.items():
+                        if hasattr(widget, w_attr):
+                            w_obj = getattr(widget, w_attr)
+                            if hasattr(w_obj, "isChecked"):
+                                profile_config[cfg_key] = bool(w_obj.isChecked())
+
+                    # 4. Extract combo lists for upgrade and research slots
+                    for combos_attr, cfg_key in [
+                        ("home_upgrade_slot_combos", "HOME_UPGRADE_SLOTS"),
+                        ("home_research_slot_combos", "HOME_RESEARCH_SLOTS"),
+                        ("bb_upgrade_slot_combos", "BB_UPGRADE_SLOTS"),
+                        ("bb_research_slot_combos", "BB_RESEARCH_SLOTS"),
+                    ]:
+                        if hasattr(widget, combos_attr):
+                            combos = getattr(widget, combos_attr)
+                            if isinstance(combos, list):
+                                profile_config[cfg_key] = [
+                                    str(c.currentData() or c.currentText() or "").strip()
+                                    for c in combos if hasattr(c, "currentData")
+                                ]
                     break
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[!] Warning reading active MainWindow widgets: {e}")
 
     # Read user-selected emulator settings from profiles/config.json
     preferred_emulator = str(profile_config.get("EMULATOR_SELECTION", "")).strip().lower()

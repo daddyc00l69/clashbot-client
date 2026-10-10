@@ -396,10 +396,16 @@ class ClientRemoteEngine:
                 from remote_bridge.hwid import get_hwid
                 client_hwid = get_hwid()
                 self.client_hwid = client_hwid
+                try:
+                    from remote_bridge.login_dialog import get_client_real_ip
+                    client_ip_val = get_client_real_ip()
+                except Exception:
+                    client_ip_val = "127.0.0.1"
                 auth_dict = {
                     "key": self.token,
                     "token": self.token,
                     "hwid": client_hwid,
+                    "client_ip": client_ip_val,
                     "version": "2.0.0",
                 }
                 await ws.send(pack_frame(MSG_AUTH, json.dumps(auth_dict).encode("utf-8")))
@@ -420,6 +426,44 @@ class ClientRemoteEngine:
                 try:
                     ok_data = json.loads(resp[5:].decode("utf-8", errors="ignore"))
                     user_name = ok_data.get("user", "User")
+                    plan_str = ok_data.get("plan", "Pro Monthly")
+                    exp_fmt = ok_data.get("expires_formatted") or ok_data.get("expires_at", "Active")
+                    exp_iso = ok_data.get("expires_at") or exp_fmt
+                    status_str = ok_data.get("license_status") or ok_data.get("status", "active")
+
+                    meta_payload = {
+                        "valid": True,
+                        "status": status_str,
+                        "plan": plan_str,
+                        "expires": exp_fmt,
+                        "expires_at": exp_iso,
+                        "expires_formatted": exp_fmt,
+                        "remaining": exp_fmt,
+                        "user": user_name,
+                        "hwid": client_hwid,
+                        "key": self.token,
+                    }
+                    candidate_dirs = [
+                        Path("."),
+                        Path("src"),
+                        Path(__file__).resolve().parent.parent,
+                        Path(__file__).resolve().parent.parent / "src",
+                    ]
+                    for cd in candidate_dirs:
+                        try:
+                            cd.mkdir(parents=True, exist_ok=True)
+                            (cd / "license_meta.json").write_text(json.dumps(meta_payload, indent=2), encoding="utf-8")
+                            (cd / "license.key").write_text(self.token, encoding="utf-8")
+                        except Exception:
+                            pass
+                    try:
+                        cfg_file = Path(__file__).resolve().parent.parent / "client_config.json"
+                        if cfg_file.exists():
+                            cdata = json.loads(cfg_file.read_text(encoding="utf-8"))
+                            cdata.update(meta_payload)
+                            cfg_file.write_text(json.dumps(cdata, indent=2), encoding="utf-8")
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 print(f"[OK] Authentication successful! Licensed to: {user_name} | HWID: [{client_hwid}]")

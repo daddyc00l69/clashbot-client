@@ -63,6 +63,34 @@ def _ensure_idle_ping_thread():
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
 
+def get_current_license_text_and_style():
+    """Retrieve up-to-date license label text and Qt stylesheet."""
+    try:
+        from license_manager import load_license_meta
+        meta = load_license_meta()
+        exp = meta.get("expires_formatted") or meta.get("expires") or meta.get("expires_at")
+        plan = meta.get("plan") or "Pro Monthly"
+        status = (meta.get("status") or "active").upper()
+
+        if status in ("SUSPENDED", "BANNED", "EXPIRED", "REVOKED", "HWID_MISMATCH"):
+            text = f"License: {status}"
+            style = "color:#EF4444; font-weight:bold; padding-left:10px;"
+        elif status in ("UNVERIFIED", "MISSING", "PENDING"):
+            text = "License: Sign In Required"
+            style = "color:#F59E0B; font-weight:bold; padding-left:10px;"
+        else:
+            if exp and exp.lower() not in ("lifetime", "active", "lifetime unlimited", "none", "", "unlicensed"):
+                text = f"License Expires: {exp} ({plan})"
+            elif "lifetime" in plan.lower():
+                text = f"License: {plan} (Active)"
+            else:
+                text = f"License: {plan} (Active)"
+            style = "color:#22C55E; font-weight:bold; padding-left:10px;"
+        return text, style, exp or "Active", plan, status
+    except Exception:
+        return "License: Active (Pro)", "color:#22C55E; font-weight:bold; padding-left:10px;", "Active", "Pro Monthly", "ACTIVE"
+
+
 def clean_branding_text(text):
     """Clean any remaining AutoClash legacy strings to ClashBot AI."""
     if not isinstance(text, str):
@@ -78,6 +106,21 @@ def clean_branding_text(text):
     text = re.sub(r'Auto\s*Clash', 'ClashBot AI', text, flags=re.IGNORECASE)
     text = re.sub(r'AutoClash', 'ClashBot AI', text, flags=re.IGNORECASE)
     text = re.sub(r'autoclash', 'ClashBot AI', text, flags=re.IGNORECASE)
+
+    # Legacy AutoClash lifetime/never expire license string replacement
+    lt = text.lower()
+    if any(k in lt for k in ('expire', 'life time', 'lifetime', 'never')):
+        if 'ping' not in lt and 'cloud:' not in lt and '⚫' not in text and '🟢' not in text and '🟡' not in text and '🔴' not in text:
+            lic_txt, _, exp, plan, _ = get_current_license_text_and_style()
+            text = re.sub(
+                r'(?:license\s*:?\s*)?(?:expire\s*:\s*.*|never\s*expir\w*.*|life\s*time.*|lifetime.*)',
+                lic_txt,
+                text,
+                flags=re.IGNORECASE
+            )
+            text = re.sub(r'life\s*time(?:\s*community\s*edition|\s*unlimited)?', f'{exp} ({plan})', text, flags=re.IGNORECASE)
+            text = re.sub(r'never\s*expir\w*', f'{exp} ({plan})', text, flags=re.IGNORECASE)
+
     return text
 
 
@@ -102,6 +145,71 @@ def _patch_main_window_class(cls):
                 pass
     cls._update_window_title = _patched_update_window_title
 
+    def _apply_dynamic_license_label(self):
+        try:
+            lic_text, lic_style, exp, plan, status = get_current_license_text_and_style()
+
+            if hasattr(self, "key_status_label") and self.key_status_label:
+                try:
+                    self.key_status_label.setText(lic_text)
+                    self.key_status_label.setStyleSheet(lic_style)
+                except Exception:
+                    pass
+
+            from PySide6.QtWidgets import QLabel
+            all_labels = list(self.findChildren(QLabel))
+            cw = getattr(self, "centralWidget", lambda: None)()
+            if cw and hasattr(cw, "scene") and cw.scene():
+                for it in cw.scene().items():
+                    if hasattr(it, "widget") and it.widget():
+                        all_labels.extend(it.widget().findChildren(QLabel))
+
+            for lbl in all_labels:
+                try:
+                    t = lbl.text()
+                    if not t:
+                        continue
+                    lt = t.lower()
+                    if "expire" in lt or "lifetime" in lt or "life time" in lt or "license:" in lt or "never" in lt:
+                        if "status:" in lt or "plan:" in lt or "hwid" in lt or "ping" in lt or "cloud:" in lt or "⚫" in t or "🟢" in t or "🟡" in t or "🔴" in t:
+                            continue
+                        lbl.setText(lic_text)
+                        lbl.setStyleSheet(lic_style)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    _orig_update_key_status_label = getattr(cls, "update_key_status_label", None)
+    def _patched_update_key_status_label(self, *args, **kwargs):
+        if _orig_update_key_status_label:
+            try:
+                _orig_update_key_status_label(self, *args, **kwargs)
+            except Exception:
+                pass
+        _apply_dynamic_license_label(self)
+    cls.update_key_status_label = _patched_update_key_status_label
+
+    _orig_recheck_license_status = getattr(cls, "recheck_license_status", None)
+    def _patched_recheck_license_status(self, *args, **kwargs):
+        if _orig_recheck_license_status:
+            try:
+                _orig_recheck_license_status(self, *args, **kwargs)
+            except Exception:
+                pass
+        _apply_dynamic_license_label(self)
+    cls.recheck_license_status = _patched_recheck_license_status
+
+    _orig_showEvent = getattr(cls, "showEvent", None)
+    def _patched_showEvent(self, *args, **kwargs):
+        if _orig_showEvent:
+            try:
+                _orig_showEvent(self, *args, **kwargs)
+            except Exception:
+                pass
+        _apply_dynamic_license_label(self)
+    cls.showEvent = _patched_showEvent
+
     _orig_init = cls.__init__
     def _patched_init(self, *args, **kwargs):
         _orig_init(self, *args, **kwargs)
@@ -109,6 +217,7 @@ def _patch_main_window_class(cls):
             self._update_window_title()
         except Exception:
             pass
+        _apply_dynamic_license_label(self)
         try:
             from PySide6.QtWidgets import QLabel
             for lbl in self.findChildren(QLabel):
@@ -339,6 +448,9 @@ def _patch_main_window_class(cls):
                         if top_badge.isHidden():
                             top_badge.show()
 
+                    # Keep dynamic license label up to date
+                    _apply_dynamic_license_label(self)
+
                     # Trigger live UI stats update so dashboard labels reflect cloud telemetry
                     if hasattr(self, "refresh_statistics"):
                         try:
@@ -368,11 +480,14 @@ def _patch_main_window_class(cls):
     if hasattr(cls, "update_builder"):
         _orig_update_builder = cls.update_builder
         def _patched_update_builder(self, *args, **kwargs):
-            res = _orig_update_builder(self, *args, **kwargs)
+            try:
+                res = _orig_update_builder(self)
+            except TypeError:
+                res = _orig_update_builder(self, *args, **kwargs)
             try:
                 import json
                 from pathlib import Path
-                val = bool(self.builder_enabled.isChecked())
+                val = bool(self.builder_enabled.isChecked()) if hasattr(self, "builder_enabled") and self.builder_enabled else False
                 for target_p in [
                     Path("profiles") / "default" / "config.json",
                     Path("src") / "profiles" / "default" / "config.json",
@@ -405,8 +520,24 @@ def _patch_main_window_class(cls):
             try:
                 import json
                 from pathlib import Path
-                if hasattr(self, "builder_enabled") and self.builder_enabled:
-                    val = bool(self.builder_enabled.isChecked())
+                toggles = {}
+                checkbox_map = {
+                    "builder_enabled": "BUILDER_ENABLED",
+                    "clan_capital_enable": "CLAN_CAPITAL",
+                    "clan_games_enable": "CLAN_GAMES",
+                    "war_attacks_enabled": "WAR_ATTACKS_ENABLED",
+                    "request_leave_enabled": "REQUEST_AND_LEAVE_ENABLED",
+                    "home_upgrade_enabled": "HOME_UPGRADE_ENABLED",
+                    "home_research_enabled": "HOME_RESEARCH_ENABLED",
+                    "bb_upgrade_enabled": "BB_UPGRADE_ENABLED",
+                    "bb_research_enabled": "BB_RESEARCH_ENABLED",
+                }
+                for widget_name, key in checkbox_map.items():
+                    if hasattr(self, widget_name):
+                        w = getattr(self, widget_name)
+                        if hasattr(w, "isChecked"):
+                            toggles[key] = bool(w.isChecked())
+                if toggles:
                     for target_p in [
                         Path("profiles") / "default" / "config.json",
                         Path("src") / "profiles" / "default" / "config.json",
@@ -417,7 +548,7 @@ def _patch_main_window_class(cls):
                             try:
                                 with open(target_p, "r", encoding="utf-8") as f:
                                     d = json.load(f)
-                                d["BUILDER_ENABLED"] = val
+                                d.update(toggles)
                                 with open(target_p, "w", encoding="utf-8") as f:
                                     json.dump(d, f, indent=2)
                             except Exception:
@@ -628,18 +759,7 @@ def _install_import_hook():
 
     _orig_import = builtins.__import__
     def _branding_import(name, globals=None, locals=None, fromlist=(), level=0):
-        try:
-            mod = _orig_import(name, globals, locals, fromlist, level)
-        except ModuleNotFoundError:
-            if "adbutils" in name:
-                import adbutils
-                if name == "adbutils.errors":
-                    return adbutils.errors
-                return adbutils
-            elif "pytesseract" in name:
-                import pytesseract
-                return pytesseract
-            raise
+        mod = _orig_import(name, globals, locals, fromlist, level)
         try:
             for mod_name in ("ui.main_window", "main_window"):
                 if mod_name in sys.modules:
